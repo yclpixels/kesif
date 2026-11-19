@@ -38,7 +38,22 @@ const cityName = (c = city()) => c.name[state.lang] || c.name.en;
 const chosen = () => state.place || city().center;
 const here = () => (state.pos && !(state.manualCity && chosen() && distanceM(state.pos, chosen()) > (state.place ? 25000 : 60000)) ? state.pos : null) || state.place || city().center || store.get('lastPos', null) || CITIES.istanbul.center;
 // What the map pill says: the picked district or province, else the city pack.
-const placeName = () => (state.place ? state.place.n : cityName());
+const placeName = () => (state.place ? state.place.n : state.area && state.pos ? state.area : cityName());
+// Which district is this point in? Borders come from data/admin/ squares, worked out on the phone.
+let adminIndex = null; const adminCells = {}; let areaAt = null;
+const inRing = (pt, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > pt.lat) !== (yj > pt.lat) && pt.lon < (xj - xi) * (pt.lat - yi) / (yj - yi) + xi) c = !c; } return c; };
+async function detectArea(p) {
+  if (areaAt && distanceM(areaAt, p) < 300) return;
+  areaAt = { lat: p.lat, lon: p.lon };
+  try {
+    adminIndex = adminIndex || new Set(await (await fetch('./data/admin/index.json')).json());
+    const key = `${Math.floor(p.lat / 0.25)}_${Math.floor(p.lon / 0.25)}`;
+    if (!adminIndex.has(key)) return;
+    const list = adminCells[key] || (adminCells[key] = await (await fetch(`./data/admin/${key}.json`)).json());
+    const hit = list.find(([, , rings]) => rings.some((r) => inRing(p, r)));
+    if (hit && state.area !== hit[1]) { state.area = hit[1]; state.areaProv = hit[0]; renderMapChrome(); }
+  } catch { /* offline: keep the city name */ }
+}
 const nf = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : state.lang);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 // Open the place itself (its page with hours, reviews, phone), not just a dropped pin.
@@ -124,6 +139,7 @@ function startWatch() {
     const first = !state.pos;
     state.pos = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy };
     moveMe();
+    detectArea(state.pos);
     if (state.follow && !nav && map && state.tab === 'map') map.easeTo({ center: [state.pos.lon, state.pos.lat], duration: 800 });
     if (Date.now() - lastDraw > 4000) { lastDraw = Date.now(); renderMapChrome(); }
     if (first) { if (!state.manualCity && pickCityFor(state.pos)) renderAll(); centerMap(); loadLive(); }
