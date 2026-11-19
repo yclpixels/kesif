@@ -541,3 +541,8 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .map-dark .msearch input, .map-dark .mresults button, .map-dark .route-chip b, .map-dark .place-card h2, .map-dark .pc-meta, .map-dark .pc-reviews { color: #f2f2f7; }
 .map-dark .mresults button:hover, .map-dark .mresults .quick button, .map-dark .pc-hours, .map-dark .place-card .btn.ghost, .map-dark .pc-reviews, .map-dark .place-card .rate { background: #34344a; color: #f2f2f7; }
 .map-dark .mq-clear { background: #48485e; color: #f2f2f7; }
+
+/* 3D art */
+.mascot-img { display: block; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)); }
+.mascot-img.locked { filter: brightness(0) opacity(.35); }
+.hero3d { display: block; margin: 0 auto; background: transparent; --poster-color: transparent; }

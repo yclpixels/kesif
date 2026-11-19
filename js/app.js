@@ -3,7 +3,7 @@ import { STOP_INFO } from './stops-info.js';
 import { fetchWeather, fetchPrayer, fetchPlaces, fetchPlacesLive, fetchWikiStops, distanceM, getPosition } from './api.js';
 import { t, LANGS, pickLang, weatherText, PHRASES_TR } from './i18n.js';
 import * as G from './game.js';
-import { mascot } from './mascot.js';
+import { mascot, setArt, hasArt, artModel, artImage } from './mascot.js';
 import { PHOTOS } from './photos.js';
 import * as A from './album.js';
 import { ICON } from './icons.js';
@@ -227,6 +227,21 @@ async function sharePlace(p) {
     if (navigator.share) await navigator.share({ title, text: [title, p.street].filter(Boolean).join(', '), url });
     else { await navigator.clipboard.writeText(`${title} ${url}`); toast(T('copied')); }
   } catch { /* cancelled */ }
+}
+
+// The big character on the profile: a turnable 3D model when one is delivered, else the picture.
+const MV_SRC = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js';
+const MV_SRI = 'sha384-Ftcjj/GNLxPvzNDftO/oryXB9aGxsGZY9JGqsXG0uUKgQDl9RfDgsx9NJ/4IVNPe';
+function hero3d(c, size) {
+  const glb = artModel(c.id);
+  if (!glb) return mascot(c, { size });
+  if (!document.querySelector('script[data-mv]')) {
+    const sc = document.createElement('script');
+    sc.type = 'module'; sc.src = MV_SRC; sc.integrity = MV_SRI; sc.crossOrigin = 'anonymous'; sc.dataset.mv = '1';
+    document.head.appendChild(sc);
+  }
+  const poster = artImage(c.id);
+  return `<model-viewer class="hero3d" src="${glb}" ${poster ? `poster="${poster}"` : ''} alt="${esc(T('ch_' + c.id))}" loading="eager" camera-controls auto-rotate autoplay animation-name="idle" disable-zoom interaction-prompt="none" shadow-intensity="0.8" style="width:${size}px;height:${size}px"></model-viewer>`;
 }
 
 /* ---------- toast ---------- */
@@ -536,7 +551,7 @@ function renderProfile() {
     <button type="button" class="round gear-l" data-scroll="friends-sec" aria-label="${esc(T('friends'))}">${ico('profile')}</button>
     <button type="button" class="round gear" data-scroll="settings" aria-label="${esc(T('settings_go'))}">${ico('gear')}</button>
     <i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i>
-    ${mascot(G.currentCharacter(), { size: 150 })}
+    ${hero3d(G.currentCharacter(), 150)}
     <div class="pro-name"><input id="pname" value="${esc(g.name)}" placeholder="${esc(T('traveler'))}" aria-label="${esc(T('your_name'))}" maxlength="20">${ico('edit')}</div>
     <b>${esc(T('level', { n: li.level }))}</b>
     ${bar(li.into, li.need)}
@@ -1274,6 +1289,7 @@ function setCity(id) {
 }
 
 function init() {
+  fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');

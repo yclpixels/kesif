@@ -35,7 +35,21 @@ const TRAITS = {
   }
 };
 
+// 3D art from assets/3d/ (listed in its manifest.json) replaces the SVG drawing when it exists.
+let ART = {};
+const SAFE = /^[a-z0-9-]+\.(png|webp|glb)$/;
+export function setArt(m) { ART = (m && m.characters) || {}; }
+export const hasArt = () => Object.keys(ART).length > 0;
+export const artModel = (id) => (ART[id] && SAFE.test(ART[id].glb || '') ? 'assets/3d/' + ART[id].glb : '');
+export const artImage = (id, costume = '') => {
+  const a = ART[id]; if (!a) return '';
+  const f = costume ? (a.costumes || {})[costume] : a.png;
+  return f && SAFE.test(f) ? 'assets/3d/' + f : '';
+};
+
 export function mascot(c, { size = 120, locked = false, costume = '' } = {}) {
+  const img = artImage(c.id, costume);
+  if (img) return `<img class="mascot-img${locked ? ' locked' : ''}" src="${img}" width="${size}" height="${size}" alt="" draggable="false" loading="lazy">`;
   const body = locked ? '#3b3561' : c.body;
   const belly = locked ? '#4a4378' : c.belly;
   const accent = locked ? '#4a4378' : c.accent;
