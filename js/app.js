@@ -71,7 +71,7 @@ const clock = () => { try { return new Date().toLocaleTimeString('en-GB', { hour
 const nearest = (list, n) => { const h = here(); return (list || []).map((p) => ({ ...p, d: distanceM(h, p) })).sort((a, b) => a.d - b.d).slice(0, n); };
 // City pack stops, stops found nearby right now, and nearby stops collected earlier somewhere else.
 const allStops = () => {
-  const list = [...Object.values(CITIES).flatMap((c) => c.stamps.map((s) => ({ ...s, city: c.id }))), ...NEARBY.stamps];
+  const list = [...Object.values(CITIES).flatMap((c) => c.stamps.map((s) => ({ ...s, city: c.id }))), ...NEARBY.stamps, ...(state.planStops || []).filter((s) => !NEARBY.stamps.some((n) => n.id === s.id))];
   const ids = new Set(list.map((s) => s.id));
   for (const m of Object.values(G.stopMeta())) if (!ids.has(m.id)) list.push(m);
   return list;
@@ -831,6 +831,8 @@ function drawLine(id, coords, { dashed = false, fit = true, padBottom = 240 } = 
 }
 function clearLines() {
   if (!map) return;
+  for (const m of planMarkers) m.remove();
+  planMarkers = [];
   endNav(true);
   for (const id of ['route', 'plan']) for (const l of [id + '-end', id, id + '-case']) if (map.getLayer(l)) map.removeLayer(l);
   for (const id of ['route', 'plan']) if (map.getSource(id)) map.removeSource(id);
@@ -994,32 +996,67 @@ async function saveOffline() {
 /* ---------- day plan ---------- */
 // Minutes to spend at a stop, by kind of place.
 const VISIT = { museum: 60, history: 40, worship: 25, market: 45, view: 25, park: 35 };
+// How far a plan may reach from where you start, by the time you have (walkable for short plans).
+const PLAN_RADIUS = { 2: 2000, 4: 3500, 6: 5000, 8: 7000 };
+const WALK_LEG = 1800; // longer hops go by taxi or transit
+const legOf = (a, b) => { const d = distanceM(a, b), ride = d * 1.3 > WALK_LEG; return { d, ride, min: ride ? Math.round(d * 1.4 / 300 + 6) : Math.max(1, Math.round(d * 1.3 / 80)) }; };
+// Sights near the start: the city pack's stops plus notable places from Wikipedia around you.
+function planPool(start, radius) {
+  const pack = city().stamps.map((s) => ({ ...s, city: s.city || state.city }));
+  const extra = (state.planStops || []).filter((w) => !pack.some((s) => distanceM(s, w) < 150));
+  const all = [...pack, ...extra].filter((s) => distanceM(start, s) <= radius);
+  const todo = all.filter((s) => !G.hasStamp(s.city || state.city, s.id));
+  return todo.length >= 2 ? todo : all;
+}
+// Fetch Wikipedia sights around the start once, then redraw the plan page.
+let planFetchAt = null;
+function ensurePlanStops(start) {
+  if (planFetchAt && distanceM(planFetchAt, start) < 1000) return;
+  planFetchAt = { lat: start.lat, lon: start.lon };
+  fetchWikiStops(start.lat, start.lon, state.lang).then((list) => {
+    state.planStops = list;
+    if (state.page === 'plan') renderView();
+  }).catch(() => {});
+}
 function buildPlan(hours) {
-  const c = city(), start = here(), budget = hours * 60;
-  let pool = c.stamps.filter((s) => !G.hasStamp(c.id, s.id));
-  if (!pool.length) pool = [...c.stamps];
-  const plan = [];
-  let at = start, used = 0, walked = 0;
-  while (pool.length) {
-    // Nearest next stop from where we are (greedy route: simple and good enough on foot).
-    pool.sort((a, b) => distanceM(at, a) - distanceM(at, b));
-    const s = pool.shift(), d = distanceM(at, s);
-    const walk = Math.round(d * 1.3 / 80), ride = d > 2000;
-    const leg = ride ? Math.round(d * 1.4 / 300 + 5) : Math.max(1, walk);
-    const cat = (STOP_INFO[s.id]?.cat || s.cat || ['history'])[0], stay = VISIT[cat] || 35;
-    if (used + leg + stay > budget) { if (plan.length) continue; }
-    plan.push({ s, leg, ride, stay, startAt: used + leg });
-    used += leg + stay; if (!ride) walked += d * 1.3; at = s;
-    if (used >= budget) break;
+  const start = here(), budget = hours * 60;
+  const pool = planPool(start, PLAN_RADIUS[hours] || 4000);
+  // 1. Greedy: keep taking the nearest stop that still fits in the time.
+  let at = start, used = 0, chosen = [];
+  const left = [...pool];
+  while (left.length) {
+    left.sort((a, b) => distanceM(at, a) - distanceM(at, b));
+    const i = left.findIndex((s) => used + legOf(at, s).min + (VISIT[(STOP_INFO[s.id]?.cat || s.cat || ['history'])[0]] || 35) <= budget);
+    if (i < 0) break;
+    const s = left.splice(i, 1)[0];
+    used += legOf(at, s).min + (VISIT[(STOP_INFO[s.id]?.cat || s.cat || ['history'])[0]] || 35);
+    chosen.push(s); at = s;
   }
-  return { plan, used, walked };
+  // 2. Untangle the order (2-opt): no crossing back and forth across town.
+  const len = (r) => r.reduce((a, s, i) => a + distanceM(i ? r[i - 1] : start, s), 0);
+  for (let improved = true, n = 0; improved && n < 50; n++) {
+    improved = false;
+    for (let i = 0; i < chosen.length - 1; i++) for (let k = i + 1; k < chosen.length; k++) {
+      const r = [...chosen.slice(0, i), ...chosen.slice(i, k + 1).reverse(), ...chosen.slice(k + 1)];
+      if (len(r) < len(chosen) - 1) { chosen = r; improved = true; }
+    }
+  }
+  // 3. Times for the final order.
+  const plan = []; let t = 0, walked = 0; at = start;
+  for (const s of chosen) {
+    const l = legOf(at, s), cat = (STOP_INFO[s.id]?.cat || s.cat || ['history'])[0], stay = VISIT[cat] || 35;
+    plan.push({ s, leg: l.min, ride: l.ride, stay, startAt: t + l.min });
+    t += l.min + stay; if (!l.ride) walked += l.d * 1.3; at = s;
+  }
+  return { plan, used: t, walked };
 }
 function renderPlan() {
+  ensurePlanStops(here());
   const h = state.hours || 4, { plan, used, walked } = buildPlan(h);
   const now = new Date(), fmt = (m) => new Date(now.getTime() + m * 60000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
   state.lastPlan = plan;
   return `${backHead(T('t_plan'))}
-  <section class="panel"><p class="muted">${esc(T('plan_intro', { city: cityName() }))}</p>
+  <section class="panel"><p class="muted">${esc(T('plan_intro', { city: placeName() }))}</p>
     <div class="seg">${[2, 4, 6, 8].map((n) => `<button type="button" data-hours="${n}" aria-pressed="${n === h}">${esc(T('hours', { n }))}</button>`).join('')}</div></section>
   ${plan.length ? `<ol class="timeline">${plan.map((x, i) => `<li>
       <span class="tl-leg">${ico(x.ride ? 'car' : 'walk')}${esc(T(x.ride ? 'plan_ride' : 'plan_walk', { n: x.leg }))}</span>
@@ -1029,7 +1066,7 @@ function renderPlan() {
     ${lateAt(now, used) ? `<p class="note">${esc(T('plan_late'))}</p>` : ''}
     <button type="button" class="btn big" data-plan-map>${ico('map')}${esc(T('plan_show'))}</button>
     <a class="btn ghost big" href="${planGmaps(plan)}" target="_blank" rel="noopener">${esc(T('plan_gmaps'))} →</a>`
-    : `<p class="muted center">${esc(T('plan_empty'))}</p>`}`;
+    : `<p class="muted center">${esc(T(state.planStops ? 'plan_empty' : 'loading'))}</p>`}`;
 }
 // Does the plan run past 18:00 Istanbul time, when most museums are closing?
 function lateAt(now, minutes) {
@@ -1039,18 +1076,29 @@ function lateAt(now, minutes) {
   return h >= 18 || h < 7 || startH >= 17 || end.getDate() !== now.getDate();
 }
 function planGmaps(plan) {
-  const h = here(), name = (s) => `${s.name}, ${CITIES[s.city]?.name.en || cityName()}`;
+  const h = here(), name = (s) => `${s.name}, ${CITIES[s.city]?.name.en || placeName()}`;
   const last = plan[plan.length - 1]; if (!last) return '#';
   const way = plan.slice(0, -1).slice(0, 8).map((x) => name(x.s)).join('|');
   return `https://www.google.com/maps/dir/?api=1&origin=${h.lat},${h.lon}&destination=${encodeURIComponent(name(last.s))}${way ? `&waypoints=${encodeURIComponent(way)}` : ''}&travelmode=walking`;
 }
-// Draw the planned route on real walking streets (straight lines if the route service is down).
+// Draw the plan on the map: each leg on real streets (walking, or driving for long hops),
+// with numbered pins so you can see the order.
+let planMarkers = [];
 async function showPlanOnMap() {
   const plan = state.lastPlan || []; if (!map || !plan.length) return;
   clearLines();
   state.tab = 'map'; state.page = null; renderNav(); renderView();
-  const r = await fetchRoute([here(), ...plan.slice(0, 11).map((x) => x.s)], false);
-  drawLine('plan', r.coords, { dashed: true });
+  const pts = [here(), ...plan.map((x) => x.s)];
+  const legs = await Promise.all(plan.map((x, i) => fetchRoute([pts[i], pts[i + 1]], x.ride)));
+  const coords = legs.flatMap((r, i) => (i ? r.coords.slice(1) : r.coords));
+  drawLine('plan', coords, { padBottom: 160 });
+  plan.forEach((x, i) => {
+    const el = document.createElement('div');
+    el.className = 'plan-num'; el.textContent = i + 1;
+    el.setAttribute('role', 'button'); el.setAttribute('aria-label', `${i + 1}. ${x.s.name}`);
+    el.addEventListener('click', (e) => { e.stopPropagation(); openStop(x.s.id); });
+    planMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([x.s.lon, x.s.lat]).addTo(map));
+  });
 }
 
 /* ---------- tool pages (from v1) ---------- */

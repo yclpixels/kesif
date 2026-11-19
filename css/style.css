@@ -579,3 +579,4 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .map-dark .pc-modes button { color: #d6d6e2; }
 .map-dark .pc-modes button[aria-pressed="true"] { background: #44445a; color: #fff; }
 .map-dark .pc-eta { color: #d6d6e2; }
+.plan-num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #7c3aed; color: #fff; font-weight: 800; font-size: .85rem; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer; }
