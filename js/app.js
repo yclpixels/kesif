@@ -284,6 +284,8 @@ function tintMap() {
   set('background', 'background-color', '#f5f4f2');
   // Hide the base style's own point icons so only Keşif pins remain, like a clean Apple Maps view.
   for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi|transit|railway|aerialway/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+  // Striped pedestrian-area patterns look noisy on a phone: plain ground instead.
+  for (const l of map.getStyle().layers) if (l.type === 'fill' && l.paint && l.paint['fill-pattern']) map.setLayoutProperty(l.id, 'visibility', 'none');
 }
 // Night map: dark like Apple Maps after sunset (or by choice in Profile). The light palette is remembered
 // from the style itself so switching back is exact.
@@ -388,22 +390,22 @@ function playerChip() {
 function renderMapChrome() {
   const c = city(), wx = state.weather;
   const next = c.stamps.filter((s) => !G.hasStamp(c.id, s.id)).map((s) => ({ ...s, d: distanceM(here(), s) })).sort((a, b) => a.d - b.d)[0];
-  // Row 1: player chip and bell, same height, pinned to the two edges. Row 2: one centred info pill.
+  // Top: you (left), the city and weather (middle), tools (right). One row, nothing else.
   $('map-top').innerHTML = `
     <div class="map-row">
       ${playerChip()}
-      <button type="button" class="round" id="tools-btn" aria-label="${esc(T('tools'))}">${ico('bell')}${G.claimable() ? '<i class="dot"></i>' : ''}</button>
-    </div>
-    <div class="map-info"><button type="button" id="city-toggle">${esc(cityName())} ▾</button><i></i><button type="button" data-page="wx">${wx ? esc(wx.temp) + '°C' : '–'}</button><i></i><span>${clock()}</span></div>`;
+      <div class="map-info"><button type="button" id="city-toggle">${esc(cityName())} ▾</button><i></i><button type="button" data-page="wx">${wx ? esc(wx.temp) + '°' : '–'}</button></div>
+      <button type="button" class="round tools-btn" id="tools-btn" aria-label="${esc(T('tools'))}">${ico('grid')}</button>
+    </div>`;
+  // Bottom right: find me and camera, stacked like Apple Maps. A banner only when there is something to do here.
+  const here_ = next && state.pos && next.d <= CHECKIN_RADIUS + Math.min(state.pos.acc || 0, 100);
   $('map-bottom').innerHTML = `
-    <div class="map-row">
-      <button type="button" class="round cam" data-photo="" aria-label="${esc(T('take_photo'))}">${ico('camera')}</button>
+    <div class="fab-col">
       <button type="button" class="round locate" id="locate-btn" aria-label="${esc(T('locate'))}">${ico('locate')}</button>
+      <button type="button" class="round cam" data-photo="" aria-label="${esc(T('take_photo'))}">${ico('camera')}</button>
     </div>
-    ${next && state.pos && next.d <= CHECKIN_RADIUS + Math.min(state.pos.acc || 0, 100)
-      ? `<button type="button" class="banner here" data-collect="${next.id}">${ico('map', 'star')}<span>${esc(T('at_stop', { name: next.name }))}</span><em>${esc(T('collect_now'))}</em></button>`
-      : next ? `<button type="button" class="banner" data-stop="${next.id}">${ico('collection', 'star')}<span>${esc(T('near_banner', { name: next.name, dist: fmtDist(next.d) }))}</span><b>›</b></button>`
-      : `<div class="banner">${ico('check', 'star')}<span>${esc(T('all_done', { city: cityName() }))}</span></div>`}`;
+    ${here_ ? `<button type="button" class="banner here" data-collect="${next.id}">${ico('map', 'star')}<span>${esc(T('at_stop', { name: next.name }))}</span><em>${esc(T('collect_now'))}</em></button>`
+      : next && next.d < 1500 ? `<button type="button" class="next-pill" data-stop="${next.id}">${ico('collection')}<span>${esc(next.name)}</span><small>${fmtDist(next.d)}</small></button>` : ''}`;
 }
 
 /* ---------- views ---------- */
@@ -578,8 +580,6 @@ function renderProfile() {
     <div class="medals">${[...G.BADGES].sort((a, b) => b.test() - a.test()).slice(0, 5).map((b) => medal(b.id, b.test())).join('')}</div>
     <button type="button" class="btn ghost" data-go-col="costumes">${esc(T('customize'))} ›</button>
   </section>
-  <h2 class="sec">${esc(T('tools'))}</h2>
-  ${toolsList()}
   <h2 class="sec" id="settings">${esc(T('settings'))}</h2>
   <section class="panel">
     <label for="lang">${esc(T('language'))}</label>

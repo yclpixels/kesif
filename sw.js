@@ -1,6 +1,6 @@
 // Damga service worker: keeps the app shell available offline.
 // Live data (weather, prayer times, places) is cached separately in localStorage by js/api.js.
-const VERSION = 'kesif-v22';
+const VERSION = 'kesif-v23';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/apple-touch-icon.png',
   './js/app.js', './js/api.js', './js/data.js', './js/i18n.js', './js/game.js', './js/mascot.js', './js/stops-info.js', './js/photos.js', './js/album.js', './js/icons.js', './js/phrases.js', './assets/3d/manifest.json'
