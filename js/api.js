@@ -32,13 +32,22 @@ async function getJSON(url, opts = {}, timeoutMs = 20000) {
 const r3 = (n) => Math.round(n * 1000) / 1000; // ~100 m grid for cache keys
 
 export async function fetchWeather(lat, lon) {
-  const key = `wx:${r3(lat)},${r3(lon)}`;
+  const key = `wx2:${r3(lat)},${r3(lon)}`;
   const hit = cacheGet(key, 30 * 60 * 1000);
   if (hit) return hit;
   try {
-    const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=Europe%2FIstanbul`;
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m`
+      + `&hourly=temperature_2m,weather_code,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max&forecast_days=4&timezone=Europe%2FIstanbul`;
     const d = await getJSON(u);
-    const v = { temp: Math.round(d.current.temperature_2m), code: d.current.weather_code };
+    const now = d.current.time.slice(0, 13);
+    const start = Math.max(0, d.hourly.time.findIndex((t) => t.slice(0, 13) === now));
+    const v = {
+      temp: Math.round(d.current.temperature_2m), code: d.current.weather_code,
+      feels: Math.round(d.current.apparent_temperature), wind: Math.round(d.current.wind_speed_10m), hum: d.current.relative_humidity_2m,
+      hours: d.hourly.time.slice(start, start + 12).map((t, i) => ({ t: t.slice(11, 16), temp: Math.round(d.hourly.temperature_2m[start + i]), code: d.hourly.weather_code[start + i], rain: d.hourly.precipitation_probability[start + i] })),
+      days: d.daily.time.map((t, i) => ({ t, max: Math.round(d.daily.temperature_2m_max[i]), min: Math.round(d.daily.temperature_2m_min[i]), code: d.daily.weather_code[i], rain: d.daily.precipitation_probability_max[i], uv: Math.round(d.daily.uv_index_max[i]) })),
+      sunrise: d.daily.sunrise[0].slice(11, 16), sunset: d.daily.sunset[0].slice(11, 16)
+    };
     cacheSet(key, v);
     return v;
   } catch (e) { return cacheAny(key); }

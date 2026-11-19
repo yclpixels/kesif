@@ -519,3 +519,25 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .big small { color: #8e8e93; }
 .talk .round { background: #8b5cf6; color: #fff; }
 .talk .round .ico { width: 18px; height: 18px; }
+
+/* weather */
+.wx-now { display: flex; align-items: center; gap: 16px; }
+.wx-big { font-size: 3.4rem; line-height: 1; }
+.wx-now b { display: block; font-size: 2.6rem; line-height: 1; }
+.wx-now small { display: block; color: var(--muted); margin-top: 4px; }
+.wx-hours { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.wx-hours > div { flex: 0 0 56px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 14px; background: var(--panel-2); }
+.wx-hours small { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.wx-hours span { font-size: 1.3rem; }
+.wx-hours em { font-style: normal; font-size: .7rem; color: #7dd3fc; min-height: 1em; }
+.wx-days { list-style: none; margin: 0; padding: 0; }
+.wx-days li { display: grid; grid-template-columns: 1fr auto 3em auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.wx-days li:last-child { border-bottom: 0; }
+.wx-days li span:first-child { text-transform: capitalize; font-weight: 700; }
+.wx-days em { font-style: normal; color: #7dd3fc; font-size: .8rem; text-align: right; }
+.wx-days b { font-variant-numeric: tabular-nums; }
+/* night map: search bar and route chip go dark too */
+.map-dark .msearch, .map-dark .mresults, .map-dark .route-chip, .map-dark .place-card { background: rgba(36, 36, 48, .96); color: #f2f2f7; }
+.map-dark .msearch input, .map-dark .mresults button, .map-dark .route-chip b, .map-dark .place-card h2, .map-dark .pc-meta, .map-dark .pc-reviews { color: #f2f2f7; }
+.map-dark .mresults button:hover, .map-dark .mresults .quick button, .map-dark .pc-hours, .map-dark .place-card .btn.ghost, .map-dark .pc-reviews, .map-dark .place-card .rate { background: #34344a; color: #f2f2f7; }
+.map-dark .mq-clear { background: #48485e; color: #f2f2f7; }

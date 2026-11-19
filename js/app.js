@@ -81,7 +81,7 @@ async function loadLive() {
 }
 // Live data appears on the map chrome and on the prayer and SOS pages; leave other screens alone.
 function onData() {
-  renderMapChrome(); drawMarkers();
+  renderMapChrome(); drawMarkers(); applyTheme();
   if (state.page === 'pray' || state.page === 'sos') renderView();
 }
 
@@ -254,7 +254,7 @@ function initMap() {
     attributionControl: false, maxPitch: 70
   });
   // Credit line is drawn by us in index.html (#map-credit) so it stays one small, quiet line.
-  map.on('style.load', tintMap);
+  map.on('style.load', () => { tintMap(); applyTheme(); });
 }
 // Recolour the base style toward Apple Maps.
 function tintMap() {
@@ -270,6 +270,42 @@ function tintMap() {
   // Hide the base style's own point icons so only Keşif pins remain, like a clean Apple Maps view.
   for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi|transit|railway|aerialway/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
 }
+// Night map: dark like Apple Maps after sunset (or by choice in Profile). The light palette is remembered
+// from the style itself so switching back is exact.
+const DARK = { bg: '#1b1b25', water: '#1a3550', park: '#1f3a2c', building: ['#2e2e3e', '#3a3a4d', '#47475c'], road: '#3c3c4c', roadMajor: '#55556a', casing: '#22222e', label: '#d6d6e2', halo: '#15151d' };
+let lightPaint = null, mapDark = null;
+function wantDark() {
+  const pref = store.get('mapTheme', 'auto');
+  if (pref !== 'auto') return pref === 'dark';
+  const wx = state.weather, now = new Date(), hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return wx && wx.sunrise ? hm < wx.sunrise || hm >= wx.sunset : now.getHours() < 6 || now.getHours() >= 19;
+}
+function applyTheme() {
+  if (!map) return;
+  let layers; try { layers = map.getStyle().layers; } catch { return; } // style not parsed yet
+  if (!layers || !layers.length) return;
+  const dark = wantDark();
+  if (dark === mapDark) return;
+  mapDark = dark;
+  document.body.classList.toggle('map-dark', dark);
+  if (!lightPaint) {
+    lightPaint = [];
+    for (const l of layers) for (const prop of ['background-color', 'fill-color', 'fill-extrusion-color', 'line-color', 'text-color', 'text-halo-color']) {
+      try { const v = map.getPaintProperty(l.id, prop); if (v !== undefined) lightPaint.push([l.id, prop, v]); } catch { /* not this type */ }
+    }
+  }
+  const set = (id, prop, val) => { try { map.setPaintProperty(id, prop, val); } catch { /* layer differs */ } };
+  if (!dark) { for (const [id, prop, v] of lightPaint) set(id, prop, v); return; }
+  for (const l of layers) {
+    const id = l.id;
+    if (l.type === 'background') set(id, 'background-color', DARK.bg);
+    else if (l.type === 'fill') set(id, 'fill-color', /water/.test(id) ? DARK.water : /park|grass|wood|landcover/.test(id) ? DARK.park : DARK.bg);
+    else if (l.type === 'fill-extrusion') set(id, 'fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, DARK.building[0], 40, DARK.building[1], 100, DARK.building[2]]);
+    else if (l.type === 'line' && !/^(route|plan)/.test(id)) set(id, 'line-color', /water|river/.test(id) ? DARK.water : /casing/.test(id) ? DARK.casing : /motorway|trunk|primary|major/.test(id) ? DARK.roadMajor : /boundary|admin/.test(id) ? '#4a4a60' : DARK.road);
+    else if (l.type === 'symbol') { set(id, 'text-color', DARK.label); set(id, 'text-halo-color', DARK.halo); }
+  }
+}
+
 function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: 58, duration: 800 }); }
 
 function addMarker(lat, lon, html, { onClick, popupHtml, z = 0, label = '' } = {}) {
@@ -343,7 +379,7 @@ function renderMapChrome() {
       ${playerChip()}
       <button type="button" class="round" id="tools-btn" aria-label="${esc(T('tools'))}">${ico('bell')}${G.claimable() ? '<i class="dot"></i>' : ''}</button>
     </div>
-    <div class="map-info"><button type="button" id="city-toggle">${esc(cityName())} ▾</button><i></i><span>${wx ? esc(wx.temp) + '°C' : '–'}</span><i></i><span>${clock()}</span></div>`;
+    <div class="map-info"><button type="button" id="city-toggle">${esc(cityName())} ▾</button><i></i><button type="button" data-page="wx">${wx ? esc(wx.temp) + '°C' : '–'}</button><i></i><span>${clock()}</span></div>`;
   $('map-bottom').innerHTML = `
     <div class="map-row">
       <button type="button" class="round cam" data-photo="" aria-label="${esc(T('take_photo'))}">${ico('camera')}</button>
@@ -535,6 +571,8 @@ function renderProfile() {
     <select id="lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
     <label>${esc(T('city_l'))}</label>
     <button type="button" class="btn ghost" id="city-toggle">${ico('map')}${esc(cityName())} ▾</button>
+    <label for="map-theme">${esc(T('map_theme'))}</label>
+    <select id="map-theme">${['auto', 'light', 'dark'].map((k) => `<option value="${k}"${k === store.get('mapTheme', 'auto') ? ' selected' : ''}>${esc(T('theme_' + k))}</option>`).join('')}</select>
   </section>
   <section class="panel">
     <div class="row"><h2>${esc(T('offline_title'))}</h2>${store.get('offline:' + state.city, '') ? `<span class="tag">${esc(store.get('offline:' + state.city, ''))}</span>` : ''}</div>
@@ -554,6 +592,7 @@ function friendsHtml() {
 }
 
 function bindProfile() {
+  $('map-theme')?.addEventListener('change', (e) => { store.set('mapTheme', e.target.value); applyTheme(); });
   $('offline-btn')?.addEventListener('click', saveOffline);
   const msg = $('friend-msg');
   $('share-code').addEventListener('click', async () => {
@@ -995,6 +1034,22 @@ function bindFare() {
   G.markFareUsed();
 }
 
+/* ---------- weather: now, the next hours and the next days (Open-Meteo) ---------- */
+const WX_ICON = (c) => (c === 0 ? '☀️' : c <= 2 ? '⛅' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 57 ? '🌦️' : c <= 67 ? '🌧️' : c <= 77 ? '🌨️' : c <= 82 ? '🌧️' : c <= 86 ? '🌨️' : '⛈️');
+function renderWx() {
+  const wx = state.weather, loc = { en: 'en-GB', tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang];
+  if (!wx || !wx.hours) return `${backHead(T('weather'))}<p class="muted pad">${esc(T('loading'))}</p>`;
+  const day = (t, i) => (i === 0 ? T('today') : new Date(t + 'T12:00:00').toLocaleDateString(loc, { weekday: 'long' }));
+  const tip = wx.days[0].uv >= 7 ? T('wx_uv') : wx.days[0].rain >= 60 ? T('wx_rain') : wx.temp >= 30 ? T('wx_hot') : wx.temp <= 5 ? T('wx_cold') : '';
+  return `${backHead(T('weather') + ' · ' + cityName())}
+  <section class="panel wx-now"><span class="wx-big" aria-hidden="true">${WX_ICON(wx.code)}</span><div><b>${wx.temp}°</b><small>${esc(weatherText(state.lang, wx.code))} · ${esc(T('wx_feels', { n: wx.feels }))}</small><small>${esc(T('wx_wind', { n: wx.wind }))} · ${esc(T('wx_hum', { n: wx.hum }))}</small></div></section>
+  ${tip ? `<p class="note">${esc(tip)}</p>` : ''}
+  <section class="panel"><h2>${esc(T('wx_hours'))}</h2><div class="wx-hours">${wx.hours.map((h, i) => `<div><small>${i === 0 ? esc(T('now')) : h.t}</small><span aria-hidden="true">${WX_ICON(h.code)}</span><b>${h.temp}°</b>${h.rain >= 20 ? `<em>${h.rain}%</em>` : '<em></em>'}</div>`).join('')}</div></section>
+  <section class="panel"><h2>${esc(T('wx_days'))}</h2><ul class="wx-days">${wx.days.map((d, i) => `<li><span>${esc(day(d.t, i))}</span><span aria-hidden="true">${WX_ICON(d.code)}</span><em>${d.rain >= 20 ? d.rain + '%' : ''}</em><b>${d.min}° / ${d.max}°</b></li>`).join('')}</ul>
+    <p class="muted">${esc(T('wx_sun', { a: wx.sunrise, b: wx.sunset }))}</p></section>
+  <p class="credit">Open-Meteo.com</p>`;
+}
+
 /* ---------- money: live exchange rates (cached, so it works offline with the last rates) ---------- */
 const FX_LIST = ['EUR', 'USD', 'GBP', 'RUB', 'CHF', 'SAR', 'AZN', 'CNY', 'JPY', 'IRR'];
 const FX_DEFAULT = { de: 'EUR', ru: 'RUB', en: 'USD', tr: 'EUR' };
@@ -1176,7 +1231,7 @@ function finishWelcome(withLoc) {
 }
 
 /* ---------- shell ---------- */
-const PAGES = { fx: [renderFx, bindFx], talk: [renderTalk], plan: [renderPlan], stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
+const PAGES = { wx: [renderWx], fx: [renderFx, bindFx], talk: [renderTalk], plan: [renderPlan], stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
 const TABS = { quests: [renderQuests], collection: [renderCollection], profile: [renderProfile, bindProfile] };
 
 function renderView() {
@@ -1268,7 +1323,7 @@ function init() {
     else if (el.id === 'locate-btn') locate();
   });
   $('tools-sheet').addEventListener('click', (e) => { if (e.target.id === 'tools-sheet') e.target.hidden = true; });
-  setInterval(() => { if (state.tab === 'map' && !state.page) renderMapChrome(); }, 30000);
+  setInterval(() => { if (state.tab === 'map' && !state.page) renderMapChrome(); applyTheme(); }, 30000);
   $('tools-title').textContent = T('tools');
   // Map search bar
   $('mq-ico').innerHTML = ico('search');
