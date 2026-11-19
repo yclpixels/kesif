@@ -51,6 +51,9 @@ KINDS = {
     "police": ("core", '[amenity=police]'),
     "pharmacy": ("core", '[amenity=pharmacy]'),
     "food": ("food", '[amenity=restaurant][name]'),
+    "cafe": ("food", '[amenity=cafe][name]'),
+    "atm": ("core", '[amenity=atm]'),
+    "toilets": ("core", '[amenity=toilets]'),
 }
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -89,6 +92,13 @@ def compact(el, kind):
     if lat is None:
         return None
     p = {"n": t.get("name:en") or t.get("name", ""), "a": round(lat, 5), "o": round(lon, 5)}
+    if kind == "atm" and not p["n"]:
+        p["n"] = t.get("brand") or t.get("operator") or ""  # the bank is what matters
+    if kind == "toilets":
+        if t.get("fee") in ("yes", "no"):
+            p["f"] = 1 if t["fee"] == "yes" else 0
+        if t.get("wheelchair") == "yes":
+            p["x"] = 1
     if t.get("name") and t.get("name") != p["n"]:
         p["l"] = t["name"]
     # Street address helps Google Maps open the right branch of a chain.
@@ -162,8 +172,15 @@ def build(city, cached_only=False):
             os.makedirs(os.path.dirname(raw), exist_ok=True)
             with open(raw, "w", encoding="utf-8") as f:
                 json.dump(data, f)
-        items = [c for c in (compact(el, kind) for el in data.get("elements", [])) if c and (c["n"] or kind in ("police", "pharmacy"))]
-        out[kind] = items
+        items = [c for c in (compact(el, kind) for el in data.get("elements", [])) if c and (c["n"] or kind in ("police", "pharmacy", "atm", "toilets"))]
+        # The same place can arrive from several sources or runs: keep one per name and ~10 m spot.
+        seen_at, unique = set(), []
+        for c in items:
+            key = (c["n"], round(c["a"], 4), round(c["o"], 4))
+            if key not in seen_at:
+                seen_at.add(key)
+                unique.append(c)
+        out[kind] = items = unique
         print(f"  {len(items)} places", file=sys.stderr)
     path = os.path.join(ROOT, "data", f"places-{city}.json")
     if not any(k in out for k in KINDS):

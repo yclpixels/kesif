@@ -69,7 +69,7 @@ export async function fetchPlaces(cityId) {
     const d = await getJSON(`./data/places-${cityId}.json`);
     const v = { built: d.built };
     // A kind that has not been downloaded yet stays null so the app can say so.
-    for (const kind of ['worship', 'food', 'mall', 'hospital', 'pharmacy', 'police']) v[kind] = d[kind] ? d[kind].map(expand) : null;
+    for (const kind of ['worship', 'food', 'mall', 'hospital', 'pharmacy', 'police', 'cafe', 'atm', 'toilets']) v[kind] = d[kind] ? d[kind].map(expand) : null;
     placeFiles[cityId] = v;
     return v;
   } catch (e) { return null; }
@@ -81,7 +81,7 @@ function expand(p) {
     name: p.n || p.l || '', local: p.l || p.n || '', lat: p.a, lon: p.o,
     phone: p.p || '', street: p.s || '', religion: p.r || '', cuisine: p.c || '', hours: p.h || '', web: p.w || '', outdoor: !!p.t,
     halal: diet.includes('h'), vegetarian: diet.includes('v'), kosher: diet.includes('k'),
-    emergency: !!p.e
+    emergency: !!p.e, fee: p.f === undefined ? null : !!p.f, wheelchair: !!p.x
   };
 }
 
@@ -150,17 +150,20 @@ nwr${a(1500)}[amenity=restaurant][name];out center tags 60;
 nwr${a(8000)}[shop=mall][name];out center tags 15;
 nwr${a(8000)}[amenity=hospital][name];out center tags 15;
 nwr${a(2500)}[amenity=pharmacy];out center tags 20;
-nwr${a(5000)}[amenity=police];out center tags 10;`;
+nwr${a(5000)}[amenity=police];out center tags 10;
+nwr${a(1200)}[amenity=cafe][name];out center tags 40;
+nwr${a(1500)}[amenity=atm];out center tags 30;
+nwr${a(2000)}[amenity=toilets];out center tags 20;`;
   for (const ep of ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass-api.de/api/interpreter']) {
     try {
       const d = await getJSON(ep, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, 14000);
-      const v = { live: true, worship: [], food: [], mall: [], hospital: [], pharmacy: [], police: [] };
+      const v = { live: true, worship: [], food: [], mall: [], hospital: [], pharmacy: [], police: [], cafe: [], atm: [], toilets: [] };
       for (const el of d.elements || []) {
         const t = el.tags || {}, la = el.lat ?? el.center?.lat, lo = el.lon ?? el.center?.lon;
         if (la == null) continue;
         const yes = (x) => /yes|only/.test(t[x] || '');
-        const p = { name: t['name:en'] || t.name || '', local: t.name || '', lat: la, lon: lo, phone: t.phone || t['contact:phone'] || '', street: t['addr:street'] ? `${t['addr:street']}${t['addr:housenumber'] ? ' ' + t['addr:housenumber'] : ''}` : '', religion: t.religion || '', cuisine: t.cuisine || '', halal: yes('diet:halal'), vegetarian: yes('diet:vegetarian') || yes('diet:vegan'), kosher: yes('diet:kosher'), emergency: t.emergency === 'yes', hours: t.opening_hours || '', web: /^https?:/.test(t.website || '') ? t.website : '', outdoor: t.outdoor_seating === 'yes' };
-        const k = t.amenity === 'place_of_worship' ? 'worship' : t.amenity === 'restaurant' ? 'food' : t.shop === 'mall' ? 'mall' : t.amenity === 'hospital' ? 'hospital' : t.amenity === 'pharmacy' ? 'pharmacy' : t.amenity === 'police' ? 'police' : null;
+        const p = { name: t['name:en'] || t.name || (t.amenity === 'atm' ? t.brand || t.operator || '' : ''), local: t.name || '', lat: la, lon: lo, phone: t.phone || t['contact:phone'] || '', street: t['addr:street'] ? `${t['addr:street']}${t['addr:housenumber'] ? ' ' + t['addr:housenumber'] : ''}` : '', religion: t.religion || '', cuisine: t.cuisine || '', halal: yes('diet:halal'), vegetarian: yes('diet:vegetarian') || yes('diet:vegan'), kosher: yes('diet:kosher'), emergency: t.emergency === 'yes', hours: t.opening_hours || '', web: /^https?:/.test(t.website || '') ? t.website : '', outdoor: t.outdoor_seating === 'yes', fee: t.fee ? t.fee === 'yes' : null, wheelchair: t.wheelchair === 'yes' };
+        const k = t.amenity === 'place_of_worship' ? 'worship' : t.amenity === 'restaurant' ? 'food' : t.shop === 'mall' ? 'mall' : t.amenity === 'hospital' ? 'hospital' : t.amenity === 'pharmacy' ? 'pharmacy' : t.amenity === 'police' ? 'police' : ['cafe', 'atm', 'toilets'].includes(t.amenity) ? t.amenity : null;
         if (k) v[k].push(p);
       }
       cacheSet(key, v);

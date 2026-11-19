@@ -407,3 +407,7 @@ Object.assign(S.en, { nav_now: 'Now', nav_dest_in: 'Destination in {d}' });
 Object.assign(S.tr, { nav_now: 'Şimdi', nav_dest_in: 'Varışa {d}' });
 Object.assign(S.de, { nav_now: 'Jetzt', nav_dest_in: 'Ziel in {d}' });
 Object.assign(S.ru, { nav_now: 'Сейчас', nav_dest_in: 'До цели {d}' });
+Object.assign(S.en, { cafe: 'Café', atm: 'ATM', toilets: 'Toilets', free: 'Free', paid: 'Paid', accessible: 'Wheelchair access', duty_find: 'Pharmacies on duty now' });
+Object.assign(S.tr, { cafe: 'Kafe', atm: 'ATM', toilets: 'Tuvalet', free: 'Ücretsiz', paid: 'Ücretli', accessible: 'Engelli erişimi', duty_find: 'Nöbetçi eczaneleri bul' });
+Object.assign(S.de, { cafe: 'Café', atm: 'Geldautomat', toilets: 'Toiletten', free: 'Kostenlos', paid: 'Kostenpflichtig', accessible: 'Rollstuhlgerecht', duty_find: 'Notdienst-Apotheken finden' });
+Object.assign(S.ru, { cafe: 'Кафе', atm: 'Банкомат', toilets: 'Туалет', free: 'Бесплатно', paid: 'Платно', accessible: 'Доступно для колясок', duty_find: 'Дежурные аптеки' });

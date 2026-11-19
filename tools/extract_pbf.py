@@ -20,11 +20,12 @@ import zlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_places import CITIES, ROOT  # noqa: E402
 
-KIND = {b"restaurant": "food", b"pharmacy": "pharmacy", b"hospital": "hospital", b"police": "police", b"place_of_worship": "worship"}
+KIND = {b"restaurant": "food", b"pharmacy": "pharmacy", b"hospital": "hospital", b"police": "police", b"place_of_worship": "worship",
+        b"cafe": "cafe", b"atm": "atm", b"toilets": "toilets"}
 WANT = set(KIND) | {b"mall"}
 KEEP = {"name", "name:en", "phone", "contact:phone", "addr:street", "addr:housenumber", "cuisine", "diet:halal",
         "diet:vegetarian", "diet:vegan", "diet:kosher", "religion", "emergency", "amenity", "shop", "opening_hours",
-        "website", "contact:website", "contact:instagram", "wheelchair", "outdoor_seating"}
+        "website", "contact:website", "brand", "operator", "fee", "contact:instagram", "wheelchair", "outdoor_seating"}
 
 
 # ---- minimal protobuf ----
@@ -203,13 +204,14 @@ def main(path):
                         found[c].setdefault(k, []).append({"type": "node", "lat": lat, "lon": lon, "tags": tags})
     raw = os.path.join(ROOT, "data", ".raw")
     for c, kinds in found.items():
-        for k in ("worship", "food", "mall", "hospital", "pharmacy", "police"):
+        for k in ("worship", "food", "mall", "hospital", "pharmacy", "police", "cafe", "atm", "toilets"):
             pts = kinds.get(k, [])
-            area = CITIES[c]["food"] if k == "food" else CITIES[c]["core"]
+            area = CITIES[c]["food"] if k in ("food", "cafe") else CITIES[c]["core"]
             pts = [p for p in pts if inside(area, p["lat"], p["lon"])]
             path_raw = os.path.join(raw, f"{c}-{k}.json")
             old = []
-            if os.path.exists(path_raw):
+            # Cafés, ATMs and toilets only ever come from this file: start them fresh (unnamed ATMs can't be matched).
+            if os.path.exists(path_raw) and k not in ("cafe", "atm", "toilets"):
                 with open(path_raw, encoding="utf-8") as f:
                     old = json.load(f).get("elements", [])
             # Keep earlier places (e.g. buildings from the shapefile) unless a detailed point is the same place.
