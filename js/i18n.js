@@ -1,4 +1,4 @@
-// Damga — UI strings. English is the source; every key must exist in "en".
+// Keşif — UI strings. English is the source; every key must exist in "en".
 export const LANGS = { en: 'EN', tr: 'TR', de: 'DE', ru: 'RU' };
 
 const S = {
@@ -28,7 +28,7 @@ const S = {
     passport: '{city} passport', checkin: 'Check in', checking: 'Checking your location…',
     got_stamp: 'Stamp collected: {name}', too_far: 'You are {dist} away. Get within {radius} m to collect this stamp.', need_loc: 'Turn on location to collect stamps.',
     badges: 'Badges', b_first: 'First stamp', b_half: 'Half the city', b_full: 'City complete', b_two: 'Two cities',
-    share: 'Share my passport', share_text: 'I collected {n} of {total} stamps in {city} with Damga.', copied: 'Copied',
+    share: 'Share my passport', share_text: 'I collected {n} of {total} stamps in {city} with Keşif.', copied: 'Copied',
     friends_soon: 'Friends and weekly ranking are coming in the next version.',
     cal_title: 'Holidays and special days', cal_intro: 'Public holidays in Türkiye and major days for every faith.',
     public: 'Public holiday', faith: 'Religious day', today: 'Today', days: '{n} days',
@@ -70,7 +70,7 @@ const S = {
     passport: '{city} pasaportu', checkin: 'Damga al', checking: 'Konumun kontrol ediliyor…',
     got_stamp: 'Damga alındı: {name}', too_far: '{dist} uzaktasın. Bu damgayı almak için {radius} m yakına gel.', need_loc: 'Damga almak için konumu aç.',
     badges: 'Rozetler', b_first: 'İlk damga', b_half: 'Şehrin yarısı', b_full: 'Şehir tamam', b_two: 'İki şehir',
-    share: 'Pasaportumu paylaş', share_text: 'Damga ile {city} şehrinde {total} damgadan {n} tanesini topladım.', copied: 'Kopyalandı',
+    share: 'Pasaportumu paylaş', share_text: 'Keşif ile {city} şehrinde {total} damgadan {n} tanesini topladım.', copied: 'Kopyalandı',
     friends_soon: 'Arkadaşlar ve haftalık sıralama bir sonraki sürümde geliyor.',
     cal_title: 'Bayramlar ve özel günler', cal_intro: 'Türkiye\'deki resmi tatiller ve tüm dinlerin önemli günleri.',
     public: 'Resmi tatil', faith: 'Dini gün', today: 'Bugün', days: '{n} gün',
@@ -112,7 +112,7 @@ const S = {
     passport: '{city}-Pass', checkin: 'Einchecken', checking: 'Standort wird geprüft…',
     got_stamp: 'Stempel gesammelt: {name}', too_far: 'Du bist {dist} entfernt. Komm auf {radius} m heran, um den Stempel zu bekommen.', need_loc: 'Schalte den Standort ein, um Stempel zu sammeln.',
     badges: 'Abzeichen', b_first: 'Erster Stempel', b_half: 'Halbe Stadt', b_full: 'Stadt komplett', b_two: 'Zwei Städte',
-    share: 'Meinen Pass teilen', share_text: 'Ich habe mit Damga {n} von {total} Stempeln in {city} gesammelt.', copied: 'Kopiert',
+    share: 'Meinen Pass teilen', share_text: 'Ich habe mit Keşif {n} von {total} Stempeln in {city} gesammelt.', copied: 'Kopiert',
     friends_soon: 'Freunde und Wochenrangliste kommen in der nächsten Version.',
     cal_title: 'Feiertage und besondere Tage', cal_intro: 'Gesetzliche Feiertage in der Türkei und wichtige Tage aller Religionen.',
     public: 'Gesetzlicher Feiertag', faith: 'Religiöser Tag', today: 'Heute', days: '{n} Tage',
@@ -154,7 +154,7 @@ const S = {
     passport: 'Паспорт: {city}', checkin: 'Отметиться', checking: 'Проверяем ваше местоположение…',
     got_stamp: 'Штамп получен: {name}', too_far: 'Вы в {dist}. Подойдите ближе {radius} м, чтобы получить штамп.', need_loc: 'Включите геолокацию, чтобы собирать штампы.',
     badges: 'Награды', b_first: 'Первый штамп', b_half: 'Полгорода', b_full: 'Город пройден', b_two: 'Два города',
-    share: 'Поделиться паспортом', share_text: 'Я собрал {n} из {total} штампов в городе {city} с Damga.', copied: 'Скопировано',
+    share: 'Поделиться паспортом', share_text: 'Я собрал {n} из {total} штампов в городе {city} с Keşif.', copied: 'Скопировано',
     friends_soon: 'Друзья и недельный рейтинг появятся в следующей версии.',
     cal_title: 'Праздники и особые дни', cal_intro: 'Государственные праздники Турции и важные дни всех религий.',
     public: 'Выходной день', faith: 'Религиозный день', today: 'Сегодня', days: '{n} дн.',
@@ -411,3 +411,11 @@ Object.assign(S.en, { cafe: 'Café', atm: 'ATM', toilets: 'Toilets', free: 'Free
 Object.assign(S.tr, { cafe: 'Kafe', atm: 'ATM', toilets: 'Tuvalet', free: 'Ücretsiz', paid: 'Ücretli', accessible: 'Engelli erişimi', duty_find: 'Nöbetçi eczaneleri bul' });
 Object.assign(S.de, { cafe: 'Café', atm: 'Geldautomat', toilets: 'Toiletten', free: 'Kostenlos', paid: 'Kostenpflichtig', accessible: 'Rollstuhlgerecht', duty_find: 'Notdienst-Apotheken finden' });
 Object.assign(S.ru, { cafe: 'Кафе', atm: 'Банкомат', toilets: 'Туалет', free: 'Бесплатно', paid: 'Платно', accessible: 'Доступно для колясок', duty_find: 'Дежурные аптеки' });
+Object.assign(S.en, { t_fx: 'Money', t_talk: 'Speak Turkish', share_place: 'Share', fx_amount: 'Amount', fx_currency: 'Currency', fx_swap: 'Swap direction', fx_none: 'No rates yet: connect to the internet once.', fx_when: 'Rates from {d}. Exchange offices give a little less.', fx_tips_t: 'Paying in Türkiye', fx_tip1: 'Pay in Turkish lira. Prices in euros or dollars are usually worse.', fx_tip2: 'When a card machine asks, choose TL, not your own currency.', fx_tip3: 'Exchange offices (döviz) in town beat the airport and hotels.',
+ ph_basic: 'Basics', ph_food: 'Eating out', ph_travel: 'Getting around', ph_help: 'Help', talk_intro: 'Tap the speaker to hear it. Tap a phrase to show it big to someone.', talk_say: 'Say it', talk_close: 'Tap to close', talk_tip: 'A smile and "Teşekkürler" go a long way.', talk_nosound: 'This phone cannot read text aloud.' });
+Object.assign(S.tr, { t_fx: 'Döviz', t_talk: 'Konuşma kılavuzu', share_place: 'Paylaş', fx_amount: 'Tutar', fx_currency: 'Para birimi', fx_swap: 'Yönü değiştir', fx_none: 'Kur yok: bir kez internete bağlan.', fx_when: '{d} kurları. Döviz büroları biraz daha az verir.', fx_tips_t: 'Türkiye\'de ödeme', fx_tip1: 'Türk lirasıyla öde; euro ya da dolar fiyatı genelde daha pahalıdır.', fx_tip2: 'Kart makinesi sorarsa kendi para birimini değil TL\'yi seç.', fx_tip3: 'Şehirdeki döviz büroları havalimanı ve otellerden iyi kur verir.',
+ ph_basic: 'Temel', ph_food: 'Yemekte', ph_travel: 'Yolda', ph_help: 'Yardım', talk_intro: 'Yabancı misafirlerine yardım için: hoparlör sesli okur, cümleye dokununca büyük gösterir.', talk_say: 'Seslendir', talk_close: 'Kapatmak için dokun', talk_tip: 'Gülümseme her dilde anlaşılır.', talk_nosound: 'Bu telefon metni sesli okuyamıyor.' });
+Object.assign(S.de, { t_fx: 'Geld', t_talk: 'Türkisch sprechen', share_place: 'Teilen', fx_amount: 'Betrag', fx_currency: 'Währung', fx_swap: 'Richtung tauschen', fx_none: 'Noch keine Kurse: einmal mit dem Internet verbinden.', fx_when: 'Kurse vom {d}. Wechselstuben geben etwas weniger.', fx_tips_t: 'Bezahlen in der Türkei', fx_tip1: 'In Lira zahlen. Preise in Euro oder Dollar sind meist schlechter.', fx_tip2: 'Fragt das Kartengerät, TL wählen, nicht Euro.', fx_tip3: 'Wechselstuben (döviz) in der Stadt sind besser als Flughafen und Hotel.',
+ ph_basic: 'Grundlagen', ph_food: 'Im Restaurant', ph_travel: 'Unterwegs', ph_help: 'Hilfe', talk_intro: 'Lautsprecher antippen zum Anhören. Einen Satz antippen, um ihn groß zu zeigen.', talk_say: 'Vorlesen', talk_close: 'Zum Schließen antippen', talk_tip: 'Ein Lächeln und „Teşekkürler" helfen viel.', talk_nosound: 'Dieses Handy kann keinen Text vorlesen.' });
+Object.assign(S.ru, { t_fx: 'Деньги', t_talk: 'Говорим по-турецки', share_place: 'Поделиться', fx_amount: 'Сумма', fx_currency: 'Валюта', fx_swap: 'Сменить направление', fx_none: 'Курсов пока нет: подключитесь к интернету.', fx_when: 'Курсы на {d}. В обменниках дают чуть меньше.', fx_tips_t: 'Оплата в Турции', fx_tip1: 'Платите в лирах: цены в евро и долларах обычно хуже.', fx_tip2: 'Если терминал спрашивает, выбирайте TL, а не свою валюту.', fx_tip3: 'Обменники (döviz) в городе выгоднее, чем в аэропорту и отелях.',
+ ph_basic: 'Основное', ph_food: 'В ресторане', ph_travel: 'В пути', ph_help: 'Помощь', talk_intro: 'Нажмите на динамик, чтобы услышать. Нажмите на фразу, чтобы показать её крупно.', talk_say: 'Произнести', talk_close: 'Нажмите, чтобы закрыть', talk_tip: 'Улыбка и «Teşekkürler» творят чудеса.', talk_nosound: 'Этот телефон не умеет читать текст вслух.' });

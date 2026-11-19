@@ -443,6 +443,7 @@ h2.sec { margin-top: 4px; }
 .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tool { min-height: 68px; display: flex; align-items: center; gap: 10px; padding: 12px; line-height: 1.2; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-weight: 800; text-align: left; }
 .tool .ico { width: 26px; height: 26px; padding: 4px; border-radius: 10px; box-sizing: content-box; color: #fff; }
+.tool-fx .ico { background: #16a34a; } .tool-talk .ico { background: #8b5cf6; }
 .tool-fare .ico { background: #f59e0b; } .tool-pray .ico { background: #10b981; } .tool-cal .ico { background: #0ea5e9; } .tool-sos .ico { background: #e11d48; }
 .sheet-wrap { position: absolute; inset: 0; z-index: 1100; background: rgba(8, 6, 24, .6); display: flex; align-items: flex-end; }
 .sheet-panel { width: 100%; max-height: 88%; overflow-y: auto; border-radius: 26px 26px 0 0; background: var(--deep); border-top: 1px solid var(--line); padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: flex; flex-direction: column; gap: 14px; }
@@ -494,3 +495,27 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 @keyframes pop { from { transform: translate(-50%, -12px) scale(.9); opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+
+/* money */
+.fx-row { display: flex; gap: 8px; }
+.fx-row input { flex: 1; min-width: 0; font-size: 1.4rem; font-weight: 800; }
+.fx-row select { width: 96px; font-weight: 800; }
+.fx-swap { display: block; margin: 8px auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); color: inherit; font-size: 1.2rem; cursor: pointer; }
+.fx-out { text-align: center; }
+.fx-out b { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.fx-out small { color: var(--muted); }
+.fx-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+.fx-quick span { display: flex; flex-direction: column; padding: 8px; border-radius: 12px; background: var(--panel-2); font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fx-quick b { color: var(--text, #fff); font-size: .9rem; }
+/* speak Turkish */
+.pad { padding: 0 4px; }
+.talk { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.talk li { display: flex; align-items: center; gap: 8px; }
+.talk-main { flex: 1; min-width: 0; text-align: left; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-2); color: inherit; font: inherit; cursor: pointer; }
+.talk-main b { display: block; font-size: 1.05rem; }
+.talk-main small { color: var(--muted); }
+.big { position: fixed; inset: 0; z-index: 1300; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; background: #fff; color: #1c1c1e; text-align: center; cursor: pointer; }
+.big p { margin: 0; font-size: clamp(2rem, 9vw, 3.4rem); font-weight: 800; line-height: 1.2; }
+.big small { color: #8e8e93; }
+.talk .round { background: #8b5cf6; color: #fff; }
+.talk .round .ico { width: 18px; height: 18px; }

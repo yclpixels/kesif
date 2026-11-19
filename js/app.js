@@ -7,6 +7,7 @@ import { mascot } from './mascot.js';
 import { PHOTOS } from './photos.js';
 import * as A from './album.js';
 import { ICON } from './icons.js';
+import { PHRASE_GROUPS, LANG_WORD } from './phrases.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -210,11 +211,22 @@ function openPlace(p, kindLabel) {
       <button type="button" class="btn" data-route-card>${ico('walk')}${esc(T('route_draw'))}</button>
       ${tel ? `<a class="btn ghost" href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(T('call'))}</a>` : ''}
       ${p.web ? `<a class="btn ghost" href="${esc(p.web)}" target="_blank" rel="noopener">${esc(T('website'))}</a>` : ''}
+      <button type="button" class="btn ghost" data-share aria-label="${esc(T('share_place'))}">${ico('share')}</button>
     </div>
     <a class="pc-reviews" href="${mapUrl(p)}" target="_blank" rel="noopener">${ico('collection')}<span><b>${esc(T('reviews'))}</b><small>${esc(T('reviews_note'))}</small></span>${ico('chevron')}</a>
     <div class="rate pc-rate"><span>${esc(T(mine ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${key}:${n}" aria-label="${n}" aria-pressed="${n <= mine}">${ico('collection')}</button>`).join('')}</div></div>`;
   $('place-card').hidden = false;
   state.cardPlace = p; state.cardLabel = kindLabel;
+}
+
+// Send a place to a friend: the phone's share sheet, or copy the link.
+async function sharePlace(p) {
+  if (!p) return;
+  const url = mapUrl(p), title = p.name || p.local || '';
+  try {
+    if (navigator.share) await navigator.share({ title, text: [title, p.street].filter(Boolean).join(', '), url });
+    else { await navigator.clipboard.writeText(`${title} ${url}`); toast(T('copied')); }
+  } catch { /* cancelled */ }
 }
 
 /* ---------- toast ---------- */
@@ -773,7 +785,7 @@ function navDraw() {
   $('nav-top').innerHTML = `<span class="nav-ico" aria-hidden="true">${st ? stepIcon(st) : '↑'}</span><div><small>${esc(toTurn < 10 ? T('nav_now') : T(arrive ? 'nav_dest_in' : 'nav_in', { d: fmtDist(toTurn) }))}</small><b>${esc(line)}</b></div>`
     + (!nav.live ? `<p class="nav-note">${esc(T('nav_noloc'))}</p>` : '') + (!r.real ? `<p class="nav-note">${esc(T('route_straight'))}</p>` : '');
   $('nav-bottom').innerHTML = `<div><b>${Math.max(1, Math.round(secs / 60))} ${esc(T('min_short'))}</b><small>${fmtDist(left)} · ${esc(T('nav_eta', { t: eta }))}</small></div>
-    <button type="button" class="round sm" data-nav-mute aria-label="${esc(T('nav_sound'))}" aria-pressed="${!nav.mute}">${nav.mute ? '🔇' : '🔊'}</button>
+    <button type="button" class="round sm" data-nav-mute aria-label="${esc(T('nav_sound'))}" aria-pressed="${!nav.mute}">${ico(nav.mute ? 'mute' : 'sound')}</button>
     <button type="button" class="round sm" data-nav-overview aria-label="${esc(T('nav_overview'))}">${ico('map')}</button>
     <button type="button" class="btn nav-end" data-nav-end>${esc(T('nav_end'))}</button>`;
   if (st && !arrive && nav.spoken !== nav.step) { nav.spoken = nav.step; speak(line); }
@@ -822,7 +834,7 @@ function installCard() {
 }
 
 function toolsList() {
-  return `${installCard()}<button type="button" class="tool tool-plan wide" data-page="plan">${ico('walk')}<span>${esc(T('t_plan'))}<small>${esc(T('plan_teaser'))}</small></span></button><div class="tools">${[['fare', 'taxi', 't_fare'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
+  return `${installCard()}<button type="button" class="tool tool-plan wide" data-page="plan">${ico('walk')}<span>${esc(T('t_plan'))}<small>${esc(T('plan_teaser'))}</small></span></button><div class="tools">${[['fare', 'taxi', 't_fare'], ['fx', 'atm', 't_fx'], ['talk', 'talk', 't_talk'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
     .map(([p, i, l]) => `<button type="button" class="tool tool-${p}" data-page="${p}">${ico(i)}<span>${esc(T(l))}</span></button>`).join('')}</div>`;
 }
 
@@ -983,6 +995,73 @@ function bindFare() {
   G.markFareUsed();
 }
 
+/* ---------- money: live exchange rates (cached, so it works offline with the last rates) ---------- */
+const FX_LIST = ['EUR', 'USD', 'GBP', 'RUB', 'CHF', 'SAR', 'AZN', 'CNY', 'JPY', 'IRR'];
+const FX_DEFAULT = { de: 'EUR', ru: 'RUB', en: 'USD', tr: 'EUR' };
+async function fetchRates() {
+  const c = store.get('fx', null);
+  if (c && Date.now() - c.at < 12 * 3600e3) return c;
+  try {
+    const d = await (await fetch('https://open.er-api.com/v6/latest/TRY')).json();
+    if (d.result === 'success') { const v = { at: Date.now(), day: d.time_last_update_unix * 1000, rates: d.rates }; store.set('fx', v); return v; }
+  } catch { /* offline */ }
+  return c;
+}
+function renderFx() {
+  const cur = store.get('fxCur', FX_DEFAULT[state.lang] || 'EUR');
+  return `${backHead(T('t_fx'))}
+  <section class="panel">
+    <div class="fx-row"><input id="fx-a" type="number" inputmode="decimal" min="0" step="any" value="${store.get('fxAmt', 100)}" aria-label="${esc(T('fx_amount'))}">
+      <select id="fx-cur" aria-label="${esc(T('fx_currency'))}">${FX_LIST.map((c) => `<option${c === cur ? ' selected' : ''}>${c}</option>`).join('')}</select></div>
+    <button type="button" class="fx-swap" id="fx-swap" aria-label="${esc(T('fx_swap'))}">⇅</button>
+    <div class="fx-out"><b id="fx-b">…</b><small id="fx-rate"></small></div>
+    <div class="fx-quick" id="fx-quick"></div>
+    <p class="muted"><span id="fx-when"></span> <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Rates by Exchange Rate API</a></p>
+  </section>
+  <section class="panel"><h2>${esc(T('fx_tips_t'))}</h2><ul class="bullets"><li>${esc(T('fx_tip1'))}</li><li>${esc(T('fx_tip2'))}</li><li>${esc(T('fx_tip3'))}</li></ul></section>`;
+}
+async function bindFx() {
+  let toTry = store.get('fxDir', true); // true: foreign → TL
+  const a = $('fx-a'), sel = $('fx-cur');
+  const fx = await fetchRates();
+  const draw = () => {
+    if (!$('fx-b')) return;
+    if (!fx) { $('fx-b').textContent = T('fx_none'); return; }
+    const cur = sel.value, per = 1 / fx.rates[cur], amt = parseFloat(a.value) || 0; // per = TL for 1 unit
+    const money = (n, c, d) => new Intl.NumberFormat(state.lang === 'en' ? 'en-GB' : state.lang, { style: 'currency', currency: c, maximumFractionDigits: d ?? (n < 10 ? 2 : 0) }).format(n);
+    $('fx-b').textContent = toTry ? `${money(amt, cur)} = ${money(amt * per, 'TRY')}` : `${money(amt, 'TRY')} = ${money(amt / per, cur)}`;
+    $('fx-rate').textContent = `1 ${cur} = ${money(per, 'TRY', 2)}`;
+    $('fx-quick').innerHTML = [20, 50, 100, 250, 500, 1000].map((n) => `<span><b>${money(n, 'TRY')}</b>${money(n / per, cur)}</span>`).join('');
+    $('fx-when').textContent = T('fx_when', { d: new Date(fx.day).toLocaleDateString(state.lang === 'en' ? 'en-GB' : state.lang) });
+    store.set('fxCur', cur); store.set('fxAmt', a.value); store.set('fxDir', toTry);
+  };
+  a.addEventListener('input', draw); sel.addEventListener('change', draw);
+  $('fx-swap').addEventListener('click', () => { toTry = !toTry; draw(); });
+  draw();
+}
+
+/* ---------- speak Turkish: phrases with pronunciation, read aloud, or shown big to someone ---------- */
+const trPhrase = (tr) => tr.replace('{lang}', LANG_WORD[state.lang] || 'İngilizce');
+function renderTalk() {
+  const L = state.lang === 'tr' ? 'en' : state.lang;
+  let i = 0;
+  return `${backHead(T('t_talk'))}
+  <p class="muted pad">${esc(T('talk_intro'))}</p>
+  ${PHRASE_GROUPS.map(([g, list]) => `<section class="panel"><h2>${esc(T(g))}</h2><ul class="talk">${list.map(([tr, pron, mean]) => `<li>
+      <button type="button" class="talk-main" data-big="${esc(trPhrase(tr))}"><b lang="tr">${esc(trPhrase(tr))}</b><small>${esc(state.lang === 'tr' ? mean.tr : `${pron[L] || pron.en} · ${mean[L] || mean.en}`)}</small></button>
+      <button type="button" class="round sm" data-say="${esc(trPhrase(tr))}" aria-label="${esc(T('talk_say'))}">${ico('sound')}</button></li>`).join('')}</ul></section>`).join('')}
+  <p class="muted pad">${esc(T('talk_tip'))}</p>`;
+}
+function sayTr(text) {
+  if (!('speechSynthesis' in window)) { toast(T('talk_nosound')); return; }
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'tr-TR'; u.rate = 0.85; const v = speechSynthesis.getVoices().find((x) => /^tr/i.test(x.lang)); if (v) u.voice = v; speechSynthesis.speak(u); } catch { toast(T('talk_nosound')); }
+}
+function showBig(text) {
+  const el = $('big');
+  el.innerHTML = `<p lang="tr">${esc(text)}</p><small>${esc(T('talk_close'))}</small>`;
+  el.hidden = false;
+}
+
 function renderCal() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const locale = { en: 'en-GB', tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang];
@@ -1097,7 +1176,7 @@ function finishWelcome(withLoc) {
 }
 
 /* ---------- shell ---------- */
-const PAGES = { plan: [renderPlan], stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
+const PAGES = { fx: [renderFx, bindFx], talk: [renderTalk], plan: [renderPlan], stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
 const TABS = { quests: [renderQuests], collection: [renderCollection], profile: [renderProfile, bindProfile] };
 
 function renderView() {
@@ -1142,9 +1221,12 @@ function setCity(id) {
 function init() {
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.quick) { $('mq').value = T(el.dataset.quick); onSearchInput($('mq').value); $('mq').focus(); }
+    if (el.dataset.say) sayTr(el.dataset.say);
+    else if (el.dataset.big) showBig(el.dataset.big);
+    else if (el.hasAttribute('data-share')) sharePlace(state.cardPlace);
+    else if (el.dataset.quick) { $('mq').value = T(el.dataset.quick); onSearchInput($('mq').value); $('mq').focus(); }
     else if (el.hasAttribute('data-nav-end')) endNav();
     else if (el.hasAttribute('data-nav-mute')) { nav.mute = !nav.mute; store.set('navMute', nav.mute); if (nav.mute) try { speechSynthesis.cancel(); } catch { /* none */ } navDraw(); }
     else if (el.hasAttribute('data-nav-overview')) { nav.overview = !nav.overview; if (nav.overview) drawLine('route', nav.r.coords); else navUpdate(); }
@@ -1211,6 +1293,7 @@ function init() {
     try { navigator.permissions.query({ name: 'geolocation' }).then((r) => { if (r.state !== 'denied') go(); }).catch(go); } catch { go(); }
   }
   if (map) map.on('click', () => { $('place-card').hidden = true; endSearch(false); });
+  $('big').addEventListener('click', () => { $('big').hidden = true; });
   if (map) map.on('dragstart', () => { state.follow = false; }); // moving the map yourself stops following
   loadLive();
   if ('serviceWorker' in navigator) {

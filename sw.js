@@ -1,9 +1,9 @@
 // Damga service worker: keeps the app shell available offline.
 // Live data (weather, prayer times, places) is cached separately in localStorage by js/api.js.
-const VERSION = 'kesif-v19';
+const VERSION = 'kesif-v20';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/apple-touch-icon.png',
-  './js/app.js', './js/api.js', './js/data.js', './js/i18n.js', './js/game.js', './js/mascot.js', './js/stops-info.js', './js/photos.js', './js/album.js', './js/icons.js'
+  './js/app.js', './js/api.js', './js/data.js', './js/i18n.js', './js/game.js', './js/mascot.js', './js/stops-info.js', './js/photos.js', './js/album.js', './js/icons.js', './js/phrases.js'
 ];
 // Place snapshots are large and may be missing in a fresh checkout; cache them when they exist.
 const OPTIONAL = ['istanbul', 'ankara', 'izmir', 'antalya', 'kapadokya', 'bursa', 'eskisehir', 'trabzon', 'mardin', 'safranbolu', 'konya', 'gaziantep', 'sanliurfa', 'edirne', 'canakkale'].map((c) => `./data/places-${c}.json`);
