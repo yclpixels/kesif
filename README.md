@@ -54,7 +54,13 @@ python3 tools/extract_osm.py data/.raw/Istanbul.osm.gz istanbul
 ```
 
 ```bash
-# Ankara: BBBike'ta yok, Overpass sunucularından (yavaş, saatler sürebilir; kaldığı yerden devam eder)
+# Diğer şehirler: Geofabrik'in Türkiye shapefile paketi (1,5 GB; Overpass kapalıyken en güvenilir yol)
+curl -L -o data/.raw/turkey-latest-free.shp.zip https://download.geofabrik.de/europe/turkey-latest-free.shp.zip
+python3 tools/extract_shp.py data/.raw/turkey-latest-free.shp.zip ankara izmir antalya kapadokya
+```
+
+```bash
+# Ya da Overpass sunucularından (yavaş, sunucular sık kapalı; kaldığı yerden devam eder)
 python3 tools/build_places.py ankara
 ```
 
@@ -107,6 +113,7 @@ js/i18n.js              Dört dilde metinler
 data/places-*.json      OpenStreetMap'ten hazır mekân verisi
 tools/build_places.py   Mekân verisini Overpass'tan indirir, uygulama dosyalarını üretir
 tools/extract_osm.py    Mekânları OpenStreetMap şehir dosyasından çıkarır
+tools/extract_shp.py    Mekânları Geofabrik Türkiye shapefile paketinden çıkarır
 sw.js                   Çevrimdışı çalışma
 manifest.webmanifest    Telefona kurulum
 ```
