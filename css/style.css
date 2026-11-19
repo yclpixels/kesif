@@ -216,6 +216,24 @@ h2.sec { margin-top: 4px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .wl .btn.big { margin-top: 4px; }
 
+/* search, install, update */
+.search { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 14px; background: rgba(18, 14, 46, .6); border: 1px solid var(--line); }
+.search .ico { color: var(--muted); width: 18px; height: 18px; }
+.search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 16px; padding: 11px 0; outline: none; }
+.results { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.results:empty { display: none; }
+.results button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .05); text-align: left; cursor: pointer; }
+.results button span { flex: 1; min-width: 0; }
+.results b { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.results small { color: var(--muted); }
+.results em { font-style: normal; color: var(--glow); font-weight: 700; font-size: .8rem; }
+.install { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(90deg, rgba(139, 92, 246, .25), rgba(56, 189, 248, .15)); text-align: left; cursor: pointer; }
+.install > .ico { width: 26px; height: 26px; color: var(--glow); }
+.install b { display: block; }
+.install small { color: var(--muted); }
+.update { position: absolute; z-index: 1210; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: #fff; color: #1c1c1e; font-weight: 700; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.update span { flex: 1; }
+
 /* photos */
 .my-photos { display: flex; flex-direction: column; gap: 8px; }
 .my-photos .btn.sm .ico { width: 16px; height: 16px; }
@@ -327,7 +345,7 @@ h2.sec { margin-top: 4px; }
 .tool .ico { width: 26px; height: 26px; padding: 4px; border-radius: 10px; box-sizing: content-box; color: #fff; }
 .tool-fare .ico { background: #f59e0b; } .tool-pray .ico { background: #10b981; } .tool-cal .ico { background: #0ea5e9; } .tool-sos .ico { background: #e11d48; }
 .sheet-wrap { position: absolute; inset: 0; z-index: 1100; background: rgba(8, 6, 24, .6); display: flex; align-items: flex-end; }
-.sheet-panel { width: 100%; border-radius: 26px 26px 0 0; background: var(--deep); border-top: 1px solid var(--line); padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: flex; flex-direction: column; gap: 14px; }
+.sheet-panel { width: 100%; max-height: 88%; overflow-y: auto; border-radius: 26px 26px 0 0; background: var(--deep); border-top: 1px solid var(--line); padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: flex; flex-direction: column; gap: 14px; }
 
 /* tool pages (from v1) */
 .list, .bullets, .phrases { margin: 0; padding: 0; list-style: none; }

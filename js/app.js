@@ -124,7 +124,7 @@ function celebrate(stop, xp, beforeLevel) {
   $('celebrate').innerHTML = `
     <div class="confetti" aria-hidden="true">${bits}</div>
     <div class="cel-card">
-      <div class="cel-stamp">${ph ? `<img src="${esc(ph.src)}" alt="">` : ''}<span>${ico('check')}</span></div>
+      <div class="cel-stamp">${ph ? `<img src="${esc(thumb(ph.src))}" alt="">` : ''}<span>${ico('check')}</span></div>
       <h2>${esc(T('stamp_got_title'))}</h2>
       <p>${esc(stop.name)}</p>
       <b class="cel-xp">${ico('collection')}${esc(T('plus_xp', { n: xp }))}</b>
@@ -337,7 +337,7 @@ function renderQuests() {
   <div class="stack">${list.map((q) => {
     const s = G.questState(q), ph = PHOTOS[qPhoto[q.id]];
     return `<article class="quest${s.claimed ? ' claimed' : ''}">
-      <div class="qart qart-${q.id.split('_')[0]}">${ph ? `<img src="${esc(ph.src)}" alt="" loading="lazy" onerror="this.remove()">` : ''}${ico(qIcon[q.id] || 'quests', 'big')}</div>
+      <div class="qart qart-${q.id.split('_')[0]}">${ph ? `<img src="${esc(thumb(ph.src))}" alt="" loading="lazy" onerror="this.remove()">` : ''}${ico(qIcon[q.id] || 'quests', 'big')}</div>
       <div class="qbody"><div class="qtop"><h2>${esc(T('q_' + q.id))}</h2><span class="xp">${ico('collection', 'gold')}${esc(T('plus_xp', { n: q.xp }))}</span></div><p>${esc(T('q_' + q.id + '_d'))}</p>
         <div class="qrow">${bar(s.p, q.goal)}<span class="qn">${s.p} / ${q.goal}</span></div></div>
       <div class="qact">${s.claimed ? `<span class="ok" title="${esc(T('claimed'))}">${ico('check')}</span>` : s.done ? `<button type="button" class="btn sm gold" data-claim="${q.id}">${esc(T('claim'))}</button>` : `<span class="chev">${ico('chevron')}</span>`}</div>
@@ -480,8 +480,50 @@ function bindProfile() {
   $('lang').addEventListener('change', (e) => { state.lang = e.target.value; try { localStorage.setItem('damga:lang', state.lang); } catch {} renderAll(); });
 }
 
+function searchBox() {
+  return `<div class="search"><span>${ico('search')}</span><input id="q" type="search" placeholder="${esc(T('search_ph'))}" aria-label="${esc(T('search_ph'))}" autocomplete="off"></div><ul class="results" id="results"></ul>`;
+}
+// Search passport stops and every downloaded place in the current city by name (Turkish-aware, accent-insensitive).
+const fold = (x) => String(x || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i');
+function runSearch(q) {
+  const out = $('results'); if (!out) return;
+  const f = fold(q).trim();
+  if (f.length < 2) { out.innerHTML = ''; return; }
+  const h = here(), pl = state.places || {};
+  const hits = [];
+  for (const s of allStops()) if (fold(s.name).includes(f)) hits.push({ kind: 'stop', p: s, label: T('cat_' + ((STOP_INFO[s.id] || { cat: ['history'] }).cat[0])), icon: 'collection' });
+  const add = (list, kind, icon, label) => { for (const p of list || []) if (fold(p.name).includes(f) || fold(p.local).includes(f)) hits.push({ kind, p, label, icon }); };
+  add(pl.food, 'place', 'food', T('restaurant'));
+  add(pl.worship, 'place', 'mosque', T('worship'));
+  add(pl.mall, 'place', 'market', T('malls'));
+  add(pl.hospital, 'place', 'hospital', T('hospital'));
+  const top = hits.map((x) => ({ ...x, d: distanceM(h, x.p) })).sort((a, b) => (a.kind === 'stop') - (b.kind === 'stop') ? (b.kind === 'stop') - (a.kind === 'stop') : a.d - b.d).slice(0, 12);
+  window.__hits = top;
+  out.innerHTML = top.length ? top.map((x, i) => `<li><button type="button" data-hit="${i}">${ico(x.icon)}<span><b>${esc(x.p.name || x.p.local)}</b><small>${esc(x.label)}</small></span><em>${fmtDist(x.d)}</em></button></li>`).join('')
+    : `<li class="muted">${esc(T('none'))}</li>`;
+}
+function openHit(i) {
+  const x = (window.__hits || [])[i]; if (!x) return;
+  $('tools-sheet').hidden = true;
+  if (x.kind === 'stop') { if (x.p.city !== state.city) setCity(x.p.city); openStop(x.p.id); return; }
+  state.tab = 'map'; state.page = null; renderNav(); renderView();
+  if (map) map.easeTo({ center: [x.p.lon, x.p.lat], zoom: 17, duration: 700 });
+  openPlace(x.p, x.label);
+}
+
+// Install: Android/Chrome gives us a prompt; iPhone needs the Share menu.
+let installEvt = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+function installCard() {
+  if (isStandalone()) return '';
+  if (installEvt) return `<button type="button" class="install" data-install>${ico('share')}<span><b>${esc(T('install'))}</b><small>${esc(T('install_d'))}</small></span></button>`;
+  if (isIOS()) return `<div class="install">${ico('share')}<span><b>${esc(T('install'))}</b><small>${esc(T('install_ios'))}</small></span></div>`;
+  return '';
+}
+
 function toolsList() {
-  return `<div class="tools">${[['fare', 'taxi', 't_fare'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
+  return `${installCard()}<div class="tools">${[['fare', 'taxi', 't_fare'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
     .map(([p, i, l]) => `<button type="button" class="tool tool-${p}" data-page="${p}">${ico(i)}<span>${esc(T(l))}</span></button>`).join('')}</div>`;
 }
 
@@ -622,6 +664,9 @@ function cuisineText(raw) {
   return raw.split(/[;,]\s*/).slice(0, 3).map((c) => dict[c.trim()] || (c.trim().charAt(0).toUpperCase() + c.trim().slice(1)).replace(/_/g, ' ')).join(', ');
 }
 
+// Wikimedia serves fixed thumbnail widths; small cards only need the 330 px one.
+const thumb = (src) => String(src).replace(/\/960px-/, '/330px-');
+
 /* ---------- first run ---------- */
 function showWelcome() {
   $('welcome').innerHTML = `
@@ -673,7 +718,7 @@ function renderNav() {
     b.querySelector('i').hidden = !(b.dataset.tab === 'quests' && G.claimable());
   });
 }
-function renderAll() { document.documentElement.lang = state.lang; $('tools-body').innerHTML = toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
+function renderAll() { document.documentElement.lang = state.lang; $('tools-body').innerHTML = searchBox() + toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
 
 function openStop(id) { state.stopId = id; state.page = 'stop'; renderView(); $('view').scrollTop = 0; }
 function goTab(tab) { state.tab = tab; state.page = null; renderNav(); renderView(); $('view').scrollTop = 0; }
@@ -688,9 +733,12 @@ function setCity(id) {
 function init() {
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.collect) { collectStop(el.dataset.collect).then((r) => { if (r.err) toast(r.err); }); }
+    if (el.dataset.hit !== undefined) openHit(+el.dataset.hit);
+    else if (el.hasAttribute('data-install')) { installEvt?.prompt(); installEvt?.userChoice.finally(() => { installEvt = null; renderAll(); }); }
+    else if (el.hasAttribute('data-reload')) location.reload();
+    else if (el.dataset.collect) { collectStop(el.dataset.collect).then((r) => { if (r.err) toast(r.err); }); }
     else if (el.hasAttribute('data-cel-close')) $('celebrate').hidden = true;
     else if (el.hasAttribute('data-pc-close')) $('place-card').hidden = true;
     else if (el.dataset.start) finishWelcome(el.dataset.start === 'loc');
@@ -721,8 +769,9 @@ function init() {
   });
   $('tools-sheet').addEventListener('click', (e) => { if (e.target.id === 'tools-sheet') e.target.hidden = true; });
   setInterval(() => { if (state.tab === 'map' && !state.page) renderMapChrome(); }, 30000);
-  $('tools-body').innerHTML = toolsList();
   $('tools-title').textContent = T('tools');
+  $('tools-sheet').addEventListener('input', (e) => { if (e.target.id === 'q') runSearch(e.target.value); });
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderAll(); });
   $('cam').addEventListener('change', (e) => savePhoto(e.target.files && e.target.files[0]));
   renderAll();
   A.loadAlbum().then(() => renderAll());
@@ -731,7 +780,16 @@ function init() {
   try { navigator.permissions?.query({ name: 'geolocation' }).then((r) => { if (r.state === 'granted' && store.get('loc', false)) startWatch(); }).catch(() => {}); } catch { /* old browser */ }
   if (map) map.on('click', () => { $('place-card').hidden = true; });
   loadLive();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('./sw.js').then((reg) => setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000)).catch(() => {});
+    // A new version took over: offer a reload instead of switching under the visitor's feet.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) return;
+      $('update').innerHTML = `<span>${esc(T('update_ready'))}</span><button type="button" class="btn sm" data-reload>${esc(T('reload'))}</button>`;
+      $('update').hidden = false;
+    });
+  }
 }
 
 init();

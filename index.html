@@ -6,6 +6,22 @@
   <title>Keşif · Keşfet. Topla. Geliş.</title>
   <meta name="description" content="Istanbul and Ankara as a game: collect stamps, earn XP, unlock characters. Plus fair taxi prices, prayer times and emergency help.">
   <meta name="theme-color" content="#1c1546">
+  <!-- Share preview (WhatsApp, Instagram, X, iMessage) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Keşif">
+  <meta property="og:title" content="Keşif · Keşfet. Topla. Geliş.">
+  <meta property="og:description" content="İstanbul ve Ankara'yı oyuna çevir: gerçek yerlerde damga topla, XP kazan, karakter aç. Adil taksi ücreti, namaz vakitleri ve acil yardım bir dokunuş uzakta.">
+  <meta property="og:url" content="https://yclpixels.github.io/kesif/">
+  <meta property="og:image" content="https://yclpixels.github.io/kesif/icons/og.png">
+  <meta property="og:image:width" content="800">
+  <meta property="og:image:height" content="420">
+  <meta property="og:image:alt" content="Keşif: Keşfet. Topla. Geliş. Üç karakter ve uygulama adı.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- Home screen app on iPhone -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Keşif">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -44,6 +60,7 @@
     <div id="viewer" class="viewer" role="dialog" aria-modal="true" hidden></div>
     <input id="cam" type="file" accept="image/*" capture="environment" hidden>
     <div id="toast" class="toast" role="status" hidden></div>
+    <div id="update" class="update" role="status" hidden></div>
   </div>
   <noscript>Keşif needs JavaScript.</noscript>
   <script type="module" src="js/app.js"></script>
