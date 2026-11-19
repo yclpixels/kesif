@@ -74,7 +74,123 @@ export const CITIES = {
     ],
     embassy: 'emb_ank',
     tip: 'tip_ank'
+  },
+  izmir: {
+    id: 'izmir',
+    name: { en: 'İzmir', tr: 'İzmir', de: 'Izmir', ru: 'Измир' },
+    center: { lat: 38.4190, lon: 27.1286, label: 'Konak' },
+    taxi: {
+      open: 40, perKm: 54, min: 210,
+      note: 'İzmir 2026 (news sites; not on the official site)',
+      routes: [
+        ['İzmir Airport (ADB) → Konak', 18],
+        ['Konak → Alsancak', 3],
+        ['Konak → Kadifekale', 3.5],
+        ['Konak → Karşıyaka', 13],
+        ['Bus terminal (Otogar) → Konak', 11]
+      ]
+    },
+    card: 'İzmirimKart',
+    transit: [
+      ['transit_izm', '35 TL'],
+      ['transit_izban', '40 TL'],
+      ['transit_air_izm', '77 TL']
+    ],
+    stamps: [
+      { id: 'iz_clock', name: 'İzmir Clock Tower', lat: 38.4189, lon: 27.1287 },
+      { id: 'iz_yali', name: 'Konak Yalı Mosque', lat: 38.4191, lon: 27.1293 },
+      { id: 'iz_kemeralti', name: 'Kemeraltı Bazaar', lat: 38.4187, lon: 27.1307 },
+      { id: 'iz_kizlaragasi', name: 'Kızlarağası Han', lat: 38.4212, lon: 27.1333 },
+      { id: 'iz_agora', name: 'Agora of Smyrna', lat: 38.4191, lon: 27.1384 },
+      { id: 'iz_kadifekale', name: 'Kadifekale', lat: 38.4138, lon: 27.1450 },
+      { id: 'iz_asansor', name: 'Historic Elevator', lat: 38.4084, lon: 27.1176 },
+      { id: 'iz_kordon', name: 'Kordon Promenade', lat: 38.4337, lon: 27.1382 },
+      { id: 'iz_kulturpark', name: 'Kültürpark', lat: 38.4279, lon: 27.1455 }
+    ],
+    embassy: 'emb_izm',
+    tip: 'tip_izm'
+  },
+  antalya: {
+    id: 'antalya',
+    name: { en: 'Antalya', tr: 'Antalya', de: 'Antalya', ru: 'Анталья' },
+    center: { lat: 36.8868, lon: 30.7055, label: 'Kaleiçi' },
+    taxi: {
+      open: 40, perKm: 50, min: 200,
+      note: 'Antalya centre 2026 (news sites; not on the official site)',
+      routes: [
+        ['Antalya Airport (AYT) → Kaleiçi', 15],
+        ['Kaleiçi → Konyaaltı Beach', 6],
+        ['Kaleiçi → Lara Beach', 13],
+        ['Kaleiçi → Lower Düden Falls', 9],
+        ['Bus terminal (Otogar) → Kaleiçi', 6]
+      ]
+    },
+    card: 'AntalyaKart',
+    transit: [
+      ['transit_ant', '42 TL'],
+      ['transit_air_ant', '42 TL'],
+      ['transit_cc_ant', '50 TL']
+    ],
+    stamps: [
+      { id: 'an_hadrian', name: "Hadrian's Gate", lat: 36.8853, lon: 30.7085 },
+      { id: 'an_yivli', name: 'Yivli Minaret', lat: 36.8866, lon: 30.7045 },
+      { id: 'an_clock', name: 'Kaleiçi Clock Tower', lat: 36.8868, lon: 30.7059 },
+      { id: 'an_harbor', name: 'Old Harbour', lat: 36.8844, lon: 30.7021 },
+      { id: 'an_kesik', name: 'Kesik Minare', lat: 36.8827, lon: 30.7057 },
+      { id: 'an_hidirlik', name: 'Hıdırlık Tower', lat: 36.8813, lon: 30.7037 },
+      { id: 'an_karaali', name: 'Karaalioğlu Park', lat: 36.8797, lon: 30.7048 },
+      { id: 'an_museum', name: 'Antalya Museum', lat: 36.8858, lon: 30.6798 },
+      { id: 'an_duden', name: 'Lower Düden Falls', lat: 36.8510, lon: 30.7835 }
+    ],
+    embassy: 'emb_ant',
+    tip: 'tip_ant'
+  },
+  kapadokya: {
+    id: 'kapadokya',
+    name: { en: 'Cappadocia', tr: 'Kapadokya', de: 'Kappadokien', ru: 'Каппадокия' },
+    center: { lat: 38.6421, lon: 34.8296, label: 'Göreme' },
+    taxi: {
+      open: 52, perKm: 65, min: 200,
+      note: 'Nevşehir, April 2026 (local news; not on the official site)',
+      routes: [
+        ['Nevşehir Airport (NAV) → Göreme', 38],
+        ['Göreme → Uçhisar', 4],
+        ['Göreme → Avanos', 10],
+        ['Göreme → Ürgüp', 9],
+        ['Göreme → Kaymaklı Underground City', 25]
+      ]
+    },
+    card: '',
+    transit: [
+      ['transit_shuttle_kap', '≈ 450–650 TL']
+    ],
+    stamps: [
+      { id: 'ka_goreme', name: 'Göreme Open-Air Museum', lat: 38.6391, lon: 34.8456 },
+      { id: 'ka_uchisar', name: 'Uçhisar Castle', lat: 38.6304, lon: 34.8053 },
+      { id: 'ka_love', name: 'Love Valley', lat: 38.6590, lon: 34.8232 },
+      { id: 'ka_pasabag', name: 'Paşabağ', lat: 38.6770, lon: 34.8549 },
+      { id: 'ka_zelve', name: 'Zelve Open-Air Museum', lat: 38.6657, lon: 34.8653 },
+      { id: 'ka_devrent', name: 'Devrent Valley', lat: 38.6751, lon: 34.8843 },
+      { id: 'ka_ortahisar', name: 'Ortahisar Castle', lat: 38.6204, lon: 34.8645 },
+      { id: 'ka_kaymakli', name: 'Kaymaklı Underground City', lat: 38.4599, lon: 34.7525 }
+    ],
+    embassy: 'emb_kap',
+    tip: 'tip_kap'
   }
+};
+
+// Anywhere else in Türkiye: stops come live from Wikipedia, places live from OpenStreetMap.
+// Taxi fare is an estimate: the median of the five city tariffs above (open 52, km 50, min 200).
+export const NEARBY = {
+  id: 'nearby',
+  name: { en: 'Near me', tr: 'Yakınım', de: 'In der Nähe', ru: 'Рядом' },
+  center: null,
+  taxi: { open: 52, perKm: 50, min: 200, estimate: true, routes: [] },
+  card: '',
+  transit: [],
+  stamps: [],
+  embassy: 'emb_any',
+  tip: 'tip_any'
 };
 
 // [date, i18n key, kind] — kind: public | faith

@@ -4,10 +4,12 @@
 Use this when the Overpass servers are too slow. It writes the same cache files that
 build_places.py reads, so afterwards run:
 
-    python3 tools/extract_osm.py istanbul data/.raw/Istanbul.osm.gz
+    python3 tools/extract_osm.py data/.raw/Istanbul.osm.gz istanbul
+    python3 tools/extract_osm.py data/.raw/turkey-latest.osm.bz2 ankara izmir antalya kapadokya
     python3 tools/build_places.py istanbul --cached
 
-City extracts: https://download.bbbike.org/osm/bbbike/  (Istanbul is there, Ankara is not)
+City extracts: https://download.bbbike.org/osm/bbbike/ (Istanbul only).
+All of Türkiye: https://download.geofabrik.de/europe/turkey-latest.osm.bz2 (about 1.5 GB, slow but complete).
 Data © OpenStreetMap contributors, ODbL.
 """
 import gzip
@@ -31,7 +33,12 @@ TESTS = {
 
 
 def open_any(path):
-    return gzip.open(path, "rb") if path.endswith(".gz") else open(path, "rb")
+    if path.endswith(".gz"):
+        return gzip.open(path, "rb")
+    if path.endswith(".bz2"):
+        import bz2
+        return bz2.open(path, "rb")
+    return open(path, "rb")
 
 
 def elements(path):
@@ -53,14 +60,20 @@ def inside(box, lat, lon):
     return s <= lat <= n and w <= lon <= e
 
 
-def main(city, path):
-    cfg = CITIES[city]
+def main(cities, path):
+    """One read of the file serves every city; each city keeps the places inside its own boxes."""
     hits = {k: [] for k in TESTS}
     way_nodes = {}  # way id -> (tags, kinds, node refs) for tagged ways
+    boxes = [CITIES[c]["core"] for c in cities]
+    near = lambda lat, lon: any(inside(b, lat, lon) for b in boxes)
 
     # Pass 1: tagged nodes directly, tagged ways remember their node refs.
     print("pass 1: reading tags…", file=sys.stderr)
+    n = 0
     for el in elements(path):
+        n += 1
+        if n % 5_000_000 == 0:
+            print(f"  {n // 1_000_000} M elements…", file=sys.stderr)
         if el.tag == "relation":
             break  # relations come last; we only use nodes and ways
         tags = {t.get("k"): t.get("v") for t in el.findall("tag")}
@@ -68,8 +81,9 @@ def main(city, path):
         if ks:
             if el.tag == "node":
                 lat, lon = float(el.get("lat")), float(el.get("lon"))
-                for k in ks:
-                    hits[k].append({"type": "node", "lat": lat, "lon": lon, "tags": tags})
+                if near(lat, lon):
+                    for k in ks:
+                        hits[k].append({"type": "node", "lat": lat, "lon": lon, "tags": tags})
             else:
                 way_nodes[el.get("id")] = (tags, ks, [nd.get("ref") for nd in el.findall("nd")])
 
@@ -88,20 +102,24 @@ def main(city, path):
             continue
         lat = sum(p[0] for p in pts) / len(pts)
         lon = sum(p[1] for p in pts) / len(pts)
-        for k in ks:
-            hits[k].append({"type": "way", "center": {"lat": lat, "lon": lon}, "tags": tags})
+        if near(lat, lon):
+            for k in ks:
+                hits[k].append({"type": "way", "center": {"lat": lat, "lon": lon}, "tags": tags})
 
     os.makedirs(os.path.join(ROOT, "data", ".raw"), exist_ok=True)
-    for k, (area, _) in TESTS.items():
-        box = cfg[area]
-        els = [e for e in hits[k] if inside(box, e.get("lat") or e["center"]["lat"], e.get("lon") or e["center"]["lon"])]
-        out = os.path.join(ROOT, "data", ".raw", f"{city}-{k}.json")
-        with open(out, "w", encoding="utf-8") as f:
-            json.dump({"elements": els, "source": os.path.basename(path)}, f)
-        print(f"  {k}: {len(els)}", file=sys.stderr)
+    for city in cities:
+        cfg = CITIES[city]
+        for k, (area, _) in TESTS.items():
+            box = cfg[area]
+            els = [e for e in hits[k] if inside(box, e.get("lat") or e["center"]["lat"], e.get("lon") or e["center"]["lon"])]
+            out = os.path.join(ROOT, "data", ".raw", f"{city}-{k}.json")
+            with open(out, "w", encoding="utf-8") as f:
+                json.dump({"elements": els, "source": os.path.basename(path)}, f)
+            print(f"  {city} {k}: {len(els)}", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[1] not in CITIES:
+    # Usage: extract_osm.py <file> <city> [<city> …]
+    if len(sys.argv) < 3 or any(c not in CITIES for c in sys.argv[2:]):
         sys.exit(__doc__)
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[2:], sys.argv[1])

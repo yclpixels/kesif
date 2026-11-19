@@ -1,6 +1,6 @@
-import { CITIES, EVENTS, CHECKED, CHECKIN_RADIUS } from './data.js';
+import { CITIES, NEARBY, EVENTS, CHECKED, CHECKIN_RADIUS } from './data.js';
 import { STOP_INFO } from './stops-info.js';
-import { fetchWeather, fetchPrayer, fetchPlaces, distanceM, getPosition } from './api.js';
+import { fetchWeather, fetchPrayer, fetchPlaces, fetchPlacesLive, fetchWikiStops, distanceM, getPosition } from './api.js';
 import { t, LANGS, pickLang, weatherText, PHRASES_TR } from './i18n.js';
 import * as G from './game.js';
 import { mascot } from './mascot.js';
@@ -29,9 +29,10 @@ const state = {
 if (!CITIES[state.city]) state.city = 'istanbul';
 
 const T = (k, v) => t(state.lang, k, v);
-const city = () => CITIES[state.city];
+const city = () => (state.city === 'nearby' ? NEARBY : CITIES[state.city]);
 const cityName = (c = city()) => c.name[state.lang] || c.name.en;
-const here = () => state.pos || city().center;
+// Where to look: the visitor, else the city pack's centre, else the last place we saw them, else Istanbul.
+const here = () => state.pos || city().center || store.get('lastPos', null) || CITIES.istanbul.center;
 const nf = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : state.lang);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 // Open the place itself (its page with hours, reviews, phone), not just a dropped pin.
@@ -44,15 +45,24 @@ const mapUrl = (p) => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 };
 // Walking directions to a passport stop, by name and city so Maps shows the landmark, not a coordinate.
-const dirUrl = (s) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${s.name}, ${CITIES[s.city]?.name.en || ''}`)}&travelmode=walking`;
+const dirUrl = (s) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${s.name}, ${CITIES[s.city]?.name.en || 'Türkiye'}`)}&travelmode=walking`;
 const clock = () => { try { return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' }); } catch { return new Date().toTimeString().slice(0, 5); } };
 const nearest = (list, n) => { const h = here(); return (list || []).map((p) => ({ ...p, d: distanceM(h, p) })).sort((a, b) => a.d - b.d).slice(0, n); };
-const allStops = () => Object.values(CITIES).flatMap((c) => c.stamps.map((s) => ({ ...s, city: c.id })));
+// City pack stops, stops found nearby right now, and nearby stops collected earlier somewhere else.
+const allStops = () => {
+  const list = [...Object.values(CITIES).flatMap((c) => c.stamps.map((s) => ({ ...s, city: c.id }))), ...NEARBY.stamps];
+  const ids = new Set(list.map((s) => s.id));
+  for (const m of Object.values(G.stopMeta())) if (!ids.has(m.id)) list.push(m);
+  return list;
+};
 const stopById = (id) => allStops().find((s) => s.id === id);
 const playerName = () => G.game().name || T('traveler');
 
 /* ---------- icons ---------- */
 const ico = (k, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
+
+// When live place data is unavailable, hand the search to Google Maps around the same point.
+const gmLink = (term) => { const h = here(); return `<a class="gm" href="https://www.google.com/maps/search/${encodeURIComponent(term)}/@${h.lat},${h.lon},15z" target="_blank" rel="noopener">${ico('map')}${esc(T('gm_search', { what: term }))}</a>`; };
 
 /* ---------- data loading ---------- */
 let loadRun = 0;
@@ -60,7 +70,11 @@ async function loadLive() {
   const h = here(), run = ++loadRun;
   state.loading = true;
   const set = (k) => (v) => { if (run === loadRun) { state[k] = v; onData(); } return v; };
-  await Promise.all([fetchWeather(h.lat, h.lon).then(set('weather')), fetchPrayer(h.lat, h.lon).then(set('prayer')), fetchPlaces(state.city).then(set('places'))]);
+  const nearby = state.city === 'nearby';
+  // City packs ship their places; anywhere else (or if the file is missing) ask OpenStreetMap live.
+  const places = (nearby ? Promise.resolve(null) : fetchPlaces(state.city)).then((v) => v || fetchPlacesLive(h.lat, h.lon));
+  const stops = nearby ? fetchWikiStops(h.lat, h.lon, state.lang).then((list) => { if (run === loadRun) { NEARBY.stamps = list; onData(); } }) : Promise.resolve();
+  await Promise.all([fetchWeather(h.lat, h.lon).then(set('weather')), fetchPrayer(h.lat, h.lon).then(set('prayer')), places.then(set('places')), stops]);
   if (run === loadRun) { state.loading = false; onData(); }
 }
 // Live data appears on the map chrome and on the prayer and SOS pages; leave other screens alone.
@@ -69,10 +83,13 @@ function onData() {
   if (state.page === 'pray' || state.page === 'sos') renderView();
 }
 
+// Inside a city pack's area use the pack; anywhere else in Türkiye switch to "Near me".
 function pickCityFor(p) {
+  store.set('lastPos', { lat: p.lat, lon: p.lon });
   let best = null;
   for (const c of Object.values(CITIES)) { const d = distanceM(p, c.center); if (d < 60000 && (!best || d < best.d)) best = { id: c.id, d }; }
-  if (best && best.id !== state.city) { state.city = best.id; store.set('city', state.city); return true; }
+  const want = best ? best.id : 'nearby';
+  if (want !== state.city) { state.city = want; store.set('city', want); state.places = null; NEARBY.stamps = []; return true; }
   return false;
 }
 async function locate() {
@@ -108,7 +125,7 @@ async function collectStop(id) {
   const d = distanceM(p, s);
   if (d > CHECKIN_RADIUS + Math.min(p.acc || 0, 100)) return { err: T('too_far', { dist: fmtDist(d), radius: CHECKIN_RADIUS }) };
   const before = G.levelInfo().level;
-  const xp = G.addStamp(s.city, s.id);
+  const xp = G.addStamp(s.city, s.id, s.city === 'nearby' ? { id: s.id, name: s.name, lat: s.lat, lon: s.lon, img: s.img, page: s.page, desc: s.desc, cat: s.cat, city: 'nearby' } : null);
   celebrate(s, xp, before);
   drawMarkers(); renderMapChrome(); renderNav();
   if (state.page === 'stop') renderView();
@@ -117,7 +134,7 @@ async function collectStop(id) {
 
 // Big moment: confetti, the stamp, XP and any level-up or new character.
 function celebrate(stop, xp, beforeLevel) {
-  const after = G.levelInfo().level, ph = PHOTOS[stop.id];
+  const after = G.levelInfo().level, ph = PHOTOS[stop.id] || (stop.img ? { src: stop.img } : null);
   const newChar = after > beforeLevel ? G.CHARACTERS.find((c) => c.level > beforeLevel && c.level <= after) : null;
   const colors = ['#8b5cf6', '#fbbf24', '#34d399', '#f43f5e', '#38bdf8', '#fff'];
   const bits = Array.from({ length: 36 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${colors[i % colors.length]};animation-delay:${(i % 9) * 0.08}s;--r:${(i * 53) % 360}deg"></i>`).join('');
@@ -210,6 +227,7 @@ function addMarker(lat, lon, html, { onClick, popupHtml, z = 0 } = {}) {
 }
 // Apple Maps style pins: a coloured circle with a white glyph and a small tail.
 // Colours follow iOS system colours so categories read at a glance.
+const CITY_MEDAL = { istanbul: 'ist', ankara: 'ank', izmir: 'izm', antalya: 'ant', kapadokya: 'kap', nearby: 'near' };
 const PIN_COLOR = { food: '#FF9500', mosque: '#34A853', church: '#5856D6', synagogue: '#007AFF', worship: '#34A853', hospital: '#FF3B30', history: '#AF52DE', museum: '#FF2D55', market: '#FF9F0A', view: '#32ADE6', park: '#30B158', got: '#F5B400' };
 const pinHtml = (icon, color, { big = false, label = '', cls = '' } = {}) =>
   `<div class="apin${big ? ' big' : ''} ${cls}" style="--c:${color}">${ico(icon)}${label ? `<span class="alabel">${esc(label)}</span>` : ''}</div>`;
@@ -226,7 +244,7 @@ function drawMarkers() {
   }
   for (const s of city().stamps) {
     const got = G.hasStamp(state.city, s.id);
-    const cat = (STOP_INFO[s.id] || { cat: ['history'] }).cat[0];
+    const cat = (STOP_INFO[s.id]?.cat || s.cat || ['history'])[0];
     addMarker(s.lat, s.lon, pinHtml(got ? 'check' : cat, got ? PIN_COLOR.got : PIN_COLOR[cat], { big: true, label: s.name, cls: got ? 'got' : 'todo' }), { onClick: () => openStop(s.id), z: 5 });
   }
   // The player always stands on the map, like in the design. Faded until the visitor shares location.
@@ -284,12 +302,12 @@ function bar(a, b) { return `<div class="xpbar"><div style="width:${Math.min(100
 
 function renderStop() {
   const s = stopById(state.stopId); if (!s) return '';
-  const info = STOP_INFO[s.id] || { cat: ['history'], en: '', tr: '' };
-  const c = CITIES[s.city], got = G.game().stamps[s.city]?.[s.id];
+  const info = STOP_INFO[s.id] || { cat: s.cat || ['history'], en: s.desc || '', tr: s.desc || '' };
+  const c = CITIES[s.city] || NEARBY, got = G.game().stamps[s.city]?.[s.id];
   const d = distanceM(here(), s);
   // Rough times: walking 80 m/min, city driving ~18 km/h plus parking, transit ~13 km/h plus waiting.
   const walk = Math.max(1, Math.round(d * 1.3 / 80)), drive = Math.max(2, Math.round(d * 1.4 / 300 + 3)), transit = Math.max(5, Math.round(d * 1.3 / 220 + 8));
-  const ph = PHOTOS[s.id], saved = G.isSaved(s.id);
+  const ph = PHOTOS[s.id] || (s.img ? { src: s.img, page: s.page, by: 'Wikipedia', lic: 'Wikimedia Commons' } : null), saved = G.isSaved(s.id);
   return `
   <div class="hero hero-${info.cat[0]}${ph ? ' photo' : ''}">
     ${ph ? `<img src="${esc(ph.src)}" alt="${esc(s.name)}" loading="eager" decoding="async" onerror="this.remove()">` : `<div class="hero-art">${ico(info.cat[0], 'big')}</div>`}
@@ -301,9 +319,10 @@ function renderStop() {
     <h1>${esc(s.name)}</h1>
     <div class="tags">${info.cat.map((k) => `<span class="tag">${esc(T('cat_' + k))}</span>`).join('')}<span class="tag quiet">${esc(cityName(c))}</span></div>
     <p>${esc(info[state.lang] || info.en)}</p>
+    ${s.page ? `<a class="wiki" href="${esc(s.page)}" target="_blank" rel="noopener">${esc(T('read_wiki'))} →</a>` : ''}
     <div class="facts"><span>${ico('pin')}${fmtDist(d)}</span>${d < 2500 ? `<span>${ico('walk')}${esc(T('min', { n: walk }))}</span>` : ''}<span>${ico('car')}${esc(T('min', { n: drive }))}</span><span>${ico('bus')}${esc(T('min', { n: transit }))}</span></div>
     <h2>${esc(T('rewards'))}</h2>
-    <div class="rewards"><div>${ico('collection', 'gold')}<b>${esc(T('plus_xp', { n: G.XP_STAMP }))}</b></div><div>${medal(s.city === 'istanbul' ? 'ist' : 'ank', true)}<b>${esc(T('city_badge', { city: cityName(c) }))}</b></div></div>
+    <div class="rewards"><div>${ico('collection', 'gold')}<b>${esc(T('plus_xp', { n: G.XP_STAMP }))}</b></div><div>${medal(CITY_MEDAL[s.city] || 'near', true)}<b>${esc(s.city === 'nearby' ? T('bd_near') : T('city_badge', { city: cityName(c) }))}</b></div></div>
     ${got ? `<p class="done">${ico('check')}${esc(T('collected', { date: got.slice(0, 10) }))}</p>
       <div class="rate"><span>${esc(T(G.myRating(s.id) ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${s.id}:${n}" aria-label="${n}" aria-pressed="${n <= G.myRating(s.id)}">${ico('collection')}</button>`).join('')}</div></div>`
       : `<button type="button" class="btn big" id="checkin" data-id="${s.id}">${esc(T('get_stamp'))}</button>
@@ -329,8 +348,8 @@ function bindStop() {
 function renderQuests() {
   // The daily login reward sits in its own chest card at the bottom, like the design.
   const list = G.QUESTS.filter((q) => q.period === state.qtab && q.id !== 'd_login');
-  const qIcon = { d_photo: 'camera', s_photo: 'camera', d_stamp: 'collection', d_fare: 'taxi', w_five: 'collection', w_worship: 'worship', s_ist: 'history', s_ank: 'history', s_market: 'market', s_museum: 'museum', s_asia: 'view', s_chars: 'egg' };
-  const qPhoto = { s_photo: 'kale', d_stamp: 'topkapi', w_five: 'galata', w_worship: 'blue', s_ist: 'hagia', s_ank: 'anitkabir', s_market: 'bazaar', s_museum: 'anadolu', s_asia: 'kpier' };
+  const qIcon = { s_near: 'locate', s_izm: 'history', s_ant: 'history', s_kap: 'view', d_photo: 'camera', s_photo: 'camera', d_stamp: 'collection', d_fare: 'taxi', w_five: 'collection', w_worship: 'worship', s_ist: 'history', s_ank: 'history', s_market: 'market', s_museum: 'museum', s_asia: 'view', s_chars: 'egg' };
+  const qPhoto = { s_izm: 'iz_clock', s_ant: 'an_hadrian', s_kap: 'ka_goreme', s_photo: 'kale', d_stamp: 'topkapi', w_five: 'galata', w_worship: 'blue', s_ist: 'hagia', s_ank: 'anitkabir', s_market: 'bazaar', s_museum: 'anadolu', s_asia: 'kpier' };
   const login = G.QUESTS.find((q) => q.id === 'd_login'), ls = G.questState(login);
   return `${header(`<span class="hicon">${ico('quests')}</span>${esc(T('nav_quests'))}`, `<button type="button" class="round" data-go="profile" aria-label="${esc(T('friends'))}">${ico('profile')}</button>`)}
   <div class="seg">${['daily', 'weekly', 'special'].map((k) => `<button type="button" data-qtab="${k}" aria-pressed="${state.qtab === k}">${esc(T('q_' + k))}</button>`).join('')}</div>
@@ -361,10 +380,14 @@ const MEDAL_SYM = {
   asia: 'M12 28c4 3 8 3 12 0s8-3 12 0M12 33c4 3 8 3 12 0s8-3 12 0M17 25l2-8h10l2 8z',
   two: 'M17 15l7 3 7-3v18l-7 3-7-3zM24 18v18M17 15v18M31 15v18',
   lvl10: 'M17 14h14v6a7 7 0 0 1-14 0zM24 27v4M19 34h10M17 16h-4a4 4 0 0 0 4 6M31 16h4a4 4 0 0 1-4 6',
-  photo: 'M14 19h5l2-3h6l2 3h5v13H14zM24 29a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'
+  photo: 'M14 19h5l2-3h6l2 3h5v13H14zM24 29a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  izm: 'M21 34h6M22 34V18h4v16M20 18h8l-4-5zM24 22h.01',
+  ant: 'M13 34V20h22v14M17 34v-8a3 3 0 0 1 6 0v8M25 34v-8a3 3 0 0 1 6 0v8M12 20h24',
+  kap: 'M24 12a8 8 0 0 1 8 8c0 5-5 8-6 10h-4c-1-2-6-5-6-10a8 8 0 0 1 8-8zM22 31h4v4h-4z',
+  near: 'M24 13a8 8 0 0 1 8 8c0 6-8 14-8 14s-8-8-8-14a8 8 0 0 1 8-8zM24 24a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'
 };
 function medal(id, on) {
-  const hue = { first: '#f59e0b', ist: '#8b5cf6', ank: '#ef4444', market: '#f97316', faith: '#22c55e', asia: '#0ea5e9', two: '#ec4899', lvl10: '#eab308', photo: '#14b8a6', city: '#ef4444' }[id] || '#8b5cf6';
+  const hue = { first: '#f59e0b', ist: '#8b5cf6', ank: '#ef4444', market: '#f97316', faith: '#22c55e', asia: '#0ea5e9', two: '#ec4899', lvl10: '#eab308', photo: '#14b8a6', izm: '#0ea5e9', ant: '#f97316', kap: '#d97706', near: '#22c55e', city: '#ef4444' }[id] || '#8b5cf6';
   const sym = MEDAL_SYM[id] || MEDAL_SYM.first, filled = id === 'first';
   return `<svg class="medal${on ? '' : ' off'}" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 2l5 4 6-1 2 6 6 2-1 6 4 5-4 5 1 6-6 2-2 6-6-1-5 4-5-4-6 1-2-6-6-2 1-6-4-5 4-5-1-6 6-2 2-6 6 1z" fill="${on ? '#fcd34d' : '#3b3561'}"/><circle cx="24" cy="24" r="15" fill="${on ? hue : '#2a2450'}"/><path d="${sym}" fill="${filled ? (on ? '#fff' : '#4a4378') : 'none'}" stroke="${on ? '#fff' : '#4a4378'}" stroke-width="${filled ? 0 : 2.2}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
@@ -446,7 +469,7 @@ function renderProfile() {
     <label for="lang">${esc(T('language'))}</label>
     <select id="lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
     <label>${esc(T('city_l'))}</label>
-    <div class="seg">${Object.values(CITIES).map((c) => `<button type="button" data-city="${c.id}" aria-pressed="${c.id === state.city}">${esc(cityName(c))}</button>`).join('')}</div>
+    <button type="button" class="btn ghost" id="city-toggle">${ico('map')}${esc(cityName())} ▾</button>
   </section>
   <p class="credit">${esc(T('data_credit'))}</p>`;
 }
@@ -491,7 +514,7 @@ function runSearch(q) {
   if (f.length < 2) { out.innerHTML = ''; return; }
   const h = here(), pl = state.places || {};
   const hits = [];
-  for (const s of allStops()) if (fold(s.name).includes(f)) hits.push({ kind: 'stop', p: s, label: T('cat_' + ((STOP_INFO[s.id] || { cat: ['history'] }).cat[0])), icon: 'collection' });
+  for (const s of allStops()) if (fold(s.name).includes(f)) hits.push({ kind: 'stop', p: s, label: T('cat_' + ((STOP_INFO[s.id]?.cat || s.cat || ['history'])[0])), icon: 'collection' });
   const add = (list, kind, icon, label) => { for (const p of list || []) if (fold(p.name).includes(f) || fold(p.local).includes(f)) hits.push({ kind, p, label, icon }); };
   add(pl.food, 'place', 'food', T('restaurant'));
   add(pl.worship, 'place', 'mosque', T('worship'));
@@ -549,10 +572,10 @@ function renderPray() {
     ${pr ? `<p><b>${esc(T('next_prayer', { name: T('p_' + np.k), time: np.time }))}</b></p><div class="ptimes">${['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].map((k) => `<span${np.k === k ? ' class="on"' : ''}><small>${esc(T('p_' + k))}</small>${esc(pr[k])}</span>`).join('')}</div>` : `<p class="muted">${esc(T('loading'))}</p>`}
   </section>
   <section class="panel"><div class="row"><h2>${esc(T('worship'))}</h2><span class="tag">${esc(T('all_faiths'))}</span></div>
-    ${rowsHtml(pl?.worship ? pickWorship(pl.worship) : [], (p) => `<small>${esc(T(relKey(p.religion)))}</small>`, !!pl?.worship)}<p class="muted">${esc(T('worship_tip'))}</p></section>
+    ${rowsHtml(pl?.worship ? pickWorship(pl.worship) : [], (p) => `<small>${esc(T(relKey(p.religion)))}</small>`, !!pl?.worship)}${pl?.worship ? '' : gmLink(T('gm_worship'))}<p class="muted">${esc(T('worship_tip'))}</p></section>
   <section class="panel"><h2>${esc(T('eat'))}</h2>
     ${rowsHtml(pl?.food ? nearest(pl.food, 8) : [], (p) => { const tg = [p.halal && T('halal'), p.vegetarian && T('vegetarian'), p.kosher && T('kosher')].filter(Boolean); return `<small>${esc(cuisineText(p.cuisine))}${tg.length ? ' · ' + tg.map(esc).join(' · ') : ''}${p.phone ? ` · <span class="sel">${esc(p.phone)}</span>` : ''}</small>`; }, !!pl?.food)}
-    <p class="muted">${esc(T('eat_tip'))}</p></section>
+    ${pl?.food ? '' : gmLink(T('gm_food'))}<p class="muted">${esc(T('eat_tip'))}</p></section>
   <section class="panel"><h2>${esc(T('malls'))}</h2>${rowsHtml(pl?.mall ? nearest(pl.mall, 4) : [], null, !!pl?.mall)}</section>`;
 }
 
@@ -561,26 +584,26 @@ function renderFare() {
   return `${backHead(T('t_fare'))}
   <section class="panel">
     <h2>${esc(T('fare_title'))}</h2><p class="muted">${esc(T('fare_intro'))}</p>
-    <label for="route">${esc(T('route'))} · ${esc(cityName())}</label>
-    <select id="route">${tx.routes.map((r, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(r[0])} · ~${r[1]} km</option>`).join('')}</select>
+    ${tx.routes.length ? `<label for="route">${esc(T('route'))} · ${esc(cityName())}</label>
+    <select id="route">${tx.routes.map((r, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(r[0])} · ~${r[1]} km</option>`).join('')}</select>` : `<p class="note">${esc(T('fare_estimate'))}</p>`}
     <label for="km">${esc(T('custom_km'))}</label>
-    <input id="km" type="number" inputmode="decimal" min="0.5" max="200" step="0.5" placeholder="${tx.routes[sel][1]}">
+    <input id="km" type="number" inputmode="decimal" min="0.5" max="200" step="0.5" placeholder="${tx.routes[sel] ? tx.routes[sel][1] : 5}">
     <div class="fare"><small>${esc(T('fair_meter'))}</small><b id="fare"></b><small>${esc(T('fare_detail', { open: tx.open, km: tx.perKm, min: tx.min }))}</small></div>
   </section>
   <section class="panel"><h2>${esc(T('watch'))}</h2><ul class="bullets"><li>${esc(T('w1'))}</li><li>${esc(T('w2'))}</li><li>${esc(T('w3'))}</li><li>${esc(T('w4'))}</li></ul></section>
-  <section class="panel"><div class="row"><h2>${esc(T('transit'))}</h2><span class="tag">${esc(c.card)}</span></div>
+  ${c.transit.length ? `<section class="panel"><div class="row"><h2>${esc(T('transit'))}</h2>${c.card ? `<span class="tag">${esc(c.card)}</span>` : ''}</div>
     <ul class="list">${c.transit.map(([k, v]) => `<li class="item"><span class="l">${esc(T(k))}</span><span class="r">${esc(v)}</span></li>`).join('')}</ul>
-    <p class="muted">${esc(T('card_tip', { card: c.card }))}</p></section>
+    ${c.card ? `<p class="muted">${esc(T('card_tip', { card: c.card }))}</p>` : ''}</section>` : ''}
   <p class="muted center">${esc(T('prices_checked', { date: CHECKED }))}</p>`;
 }
 function bindFare() {
   const tx = city().taxi, route = $('route'), km = $('km');
   const calc = () => {
-    const custom = parseFloat(km.value), dist = custom > 0 ? custom : tx.routes[+route.value][1];
+    const custom = parseFloat(km.value), dist = custom > 0 ? custom : (route ? tx.routes[+route.value][1] : 5);
     const base = Math.max(tx.min, tx.open + tx.perKm * dist), r10 = (n) => Math.round(n / 10) * 10;
     $('fare').textContent = `${nf(r10(base))} – ${nf(r10(base * 1.15))} TL`;
   };
-  route.addEventListener('change', () => { store.set('route:' + state.city, +route.value); km.value = ''; km.placeholder = tx.routes[+route.value][1]; calc(); });
+  if (route) route.addEventListener('change', () => { store.set('route:' + state.city, +route.value); km.value = ''; km.placeholder = tx.routes[+route.value][1]; calc(); });
   km.addEventListener('input', calc);
   calc();
   G.markFareUsed();
@@ -605,7 +628,7 @@ function renderSos() {
   const sosAvail = !!(pl && (pl.hospital || pl.police || pl.pharmacy));
   return `${backHead(T('t_sos'))}
   <div class="sos"><small>${esc(T('emergency'))}</small><b class="sel">112</b></div>
-  <section class="panel"><h2>${esc(T('nearest'))}</h2>${rowsHtml(near, (p) => `<small>${esc(T(p.kind))}${p.phone ? ` · <span class="sel">${esc(p.phone)}</span>` : ''}</small>`, sosAvail)}<p class="muted">${esc(T('duty_pharmacy'))}</p></section>
+  <section class="panel"><h2>${esc(T('nearest'))}</h2>${rowsHtml(near, (p) => `<small>${esc(T(p.kind))}${p.phone ? ` · <span class="sel">${esc(p.phone)}</span>` : ''}</small>`, sosAvail)}${sosAvail ? '' : gmLink(T('gm_hospital')) + gmLink(T('gm_pharmacy'))}<p class="muted">${esc(T('duty_pharmacy'))}</p></section>
   <section class="panel"><h2>${esc(T('embassy'))}</h2><p class="muted">${esc(T(city().embassy))}</p></section>
   <section class="panel"><h2>${esc(T('phrases'))}</h2><ul class="phrases">${Object.keys(PHRASES_TR).map((k) => `<li><b lang="tr">${esc(PHRASES_TR[k])}</b>${state.lang !== 'tr' ? `<small>${esc(T(k))}</small>` : ''}</li>`).join('')}</ul></section>`;
 }
@@ -656,6 +679,8 @@ async function sharePhoto(id) {
 
 /* ---------- cuisine names (OpenStreetMap values are English codes) ---------- */
 const CUISINE = {
+  de: { turkish: 'Türkische Küche', kebab: 'Kebab', regional: 'Regional', seafood: 'Meeresfrüchte', fish: 'Fisch', pizza: 'Pizza', burger: 'Burger', italian: 'Italienisch', chinese: 'Chinesisch', japanese: 'Japanisch', sushi: 'Sushi', coffee_shop: 'Café', breakfast: 'Frühstück', international: 'International', vegetarian: 'Vegetarisch', vegan: 'Vegan', meat: 'Fleisch', steak_house: 'Steakhaus', chicken: 'Hähnchen', dessert: 'Dessert', ottoman: 'Osmanisch', mediterranean: 'Mediterran', greek: 'Griechisch', indian: 'Indisch', asian: 'Asiatisch', homestyle: 'Hausmannskost', soup: 'Suppe', pide: 'Pide', lahmacun: 'Lahmacun', doner: 'Döner' },
+  ru: { turkish: 'Турецкая кухня', kebab: 'Кебаб', regional: 'Местная кухня', seafood: 'Морепродукты', fish: 'Рыба', pizza: 'Пицца', burger: 'Бургеры', italian: 'Итальянская', chinese: 'Китайская', japanese: 'Японская', sushi: 'Суши', coffee_shop: 'Кофейня', breakfast: 'Завтраки', international: 'Интернациональная', vegetarian: 'Вегетарианская', vegan: 'Веганская', meat: 'Мясо', steak_house: 'Стейк-хаус', chicken: 'Курица', dessert: 'Десерты', ottoman: 'Османская', mediterranean: 'Средиземноморская', greek: 'Греческая', indian: 'Индийская', asian: 'Азиатская', homestyle: 'Домашняя кухня', soup: 'Супы', pide: 'Пиде', lahmacun: 'Лахмаджун', doner: 'Дёнер' },
   tr: { turkish: 'Türk mutfağı', kebab: 'Kebap', regional: 'Yöresel', seafood: 'Deniz ürünleri', fish: 'Balık', pizza: 'Pizza', burger: 'Burger', italian: 'İtalyan', chinese: 'Çin', japanese: 'Japon', sushi: 'Suşi', coffee_shop: 'Kahve', breakfast: 'Kahvaltı', international: 'Dünya mutfağı', vegetarian: 'Vejetaryen', vegan: 'Vegan', meat: 'Et', steak_house: 'Et', chicken: 'Tavuk', dessert: 'Tatlı', ottoman: 'Osmanlı', mediterranean: 'Akdeniz', greek: 'Yunan', indian: 'Hint', asian: 'Asya', homestyle: 'Ev yemekleri', soup: 'Çorba', pide: 'Pide', lahmacun: 'Lahmacun', doner: 'Döner', meyhane: 'Meyhane', börek: 'Börek' }
 };
 function cuisineText(raw) {
@@ -679,7 +704,7 @@ function showWelcome() {
       <input id="wl-name" maxlength="20" placeholder="${esc(T('traveler'))}" autocomplete="nickname">
       <div class="two">
         <div><label for="wl-lang">${esc(T('language'))}</label><select id="wl-lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
-        <div><label for="wl-city">${esc(T('city_l'))}</label><select id="wl-city">${Object.values(CITIES).map((c) => `<option value="${c.id}"${c.id === state.city ? ' selected' : ''}>${esc(cityName(c))}</option>`).join('')}</select></div>
+        <div><label for="wl-city">${esc(T('city_l'))}</label><select id="wl-city"><option value="nearby"${state.city === 'nearby' ? ' selected' : ''}>${esc(NEARBY.name[state.lang] || NEARBY.name.en)}</option>${Object.values(CITIES).map((c) => `<option value="${c.id}"${c.id === state.city ? ' selected' : ''}>${esc(cityName(c))}</option>`).join('')}</select></div>
       </div>
       <button type="button" class="btn big" data-start="loc">${ico('locate')}${esc(T('start_loc'))}</button>
       <button type="button" class="btn ghost big" data-start="noloc">${esc(T('start_noloc'))}</button>
@@ -722,10 +747,19 @@ function renderAll() { document.documentElement.lang = state.lang; $('tools-body
 
 function openStop(id) { state.stopId = id; state.page = 'stop'; renderView(); $('view').scrollTop = 0; }
 function goTab(tab) { state.tab = tab; state.page = null; renderNav(); renderView(); $('view').scrollTop = 0; }
+function openCityPicker() {
+  const opt = (id, name, sub, n, total) => `<li><button type="button" data-city="${id}" aria-pressed="${id === state.city}">${ico(id === 'nearby' ? 'locate' : 'map')}<span><b>${esc(name)}</b><small>${esc(sub)}</small></span>${total ? `<em>${n} / ${total}</em>` : ''}</button></li>`;
+  $('tools-title').textContent = T('city_pick');
+  $('tools-body').innerHTML = `<ul class="cities">${opt('nearby', NEARBY.name[state.lang] || NEARBY.name.en, T('near_sub'), 0, 0)}${Object.values(CITIES).map((c) => opt(c.id, cityName(c), c.center.label, G.stampCount(c.id), c.stamps.length)).join('')}</ul>`;
+  $('tools-sheet').hidden = false;
+}
 function setCity(id) {
+  $('tools-sheet').hidden = true;
   if (id === state.city) return;
   state.city = id; store.set('city', id);
-  if (state.pos && distanceM(state.pos, city().center) > 60000) state.pos = null;
+  if (id !== 'nearby') NEARBY.stamps = [];
+  // A chosen city pack wins over a real position elsewhere.
+  if (state.pos && city().center && distanceM(state.pos, city().center) > 60000) state.pos = null;
   state.weather = state.prayer = state.places = null;
   centerMap(); renderAll(); loadLive();
 }
@@ -762,8 +796,8 @@ function init() {
     else if (el.dataset.claim) { const q = G.QUESTS.find((x) => x.id === el.dataset.claim); const xp = G.claim(q); if (xp) reward(xp, T('q_' + q.id)); renderAll(); }
     else if (el.dataset.char) { G.setCharacter(el.dataset.char); renderAll(); }
     else if (el.dataset.city) setCity(el.dataset.city);
-    else if (el.id === 'city-toggle') { const ids = Object.keys(CITIES); setCity(ids[(ids.indexOf(state.city) + 1) % ids.length]); }
-    else if (el.id === 'tools-btn') $('tools-sheet').hidden = false;
+    else if (el.id === 'city-toggle') openCityPicker();
+    else if (el.id === 'tools-btn') { $('tools-title').textContent = T('tools'); $('tools-body').innerHTML = searchBox() + toolsList(); $('tools-sheet').hidden = false; }
     else if (el.id === 'tools-close') $('tools-sheet').hidden = true;
     else if (el.id === 'locate-btn') locate();
   });

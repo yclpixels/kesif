@@ -1,6 +1,6 @@
 # Keşif
 
-*Keşfet. Topla. Geliş.* İstanbul ve Ankara'yı oyuna çeviren web uygulaması. Ziyaretçi gerçek yerlere gidip damga toplar, XP kazanır, seviye atlar, karakter ve rozet açar. Yanında taksi ücreti, namaz vakitleri, bayram takvimi ve acil durum araçları var. Telefona "Ana ekrana ekle" ile uygulama gibi kurulur.
+*Keşfet. Topla. Geliş.* Türkiye'yi oyuna çeviren web uygulaması. İstanbul, Ankara, İzmir, Antalya ve Kapadokya için hazırlanmış şehir paketleri var; bunların dışında "Yakınım" modu damga duraklarını Wikipedia'dan, restoran, ibadet yeri ve hastaneleri OpenStreetMap'ten canlı bulur. Ziyaretçi gerçek yerlere gidip damga toplar, XP kazanır, seviye atlar, karakter ve rozet açar. Yanında taksi ücreti, namaz vakitleri, bayram takvimi ve acil durum araçları var. Telefona "Ana ekrana ekle" ile uygulama gibi kurulur.
 
 ## Ekranlar
 
@@ -50,7 +50,7 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Konum ve uygulama kurul
 ```bash
 # İstanbul: BBBike şehir dosyası (hızlı, ~1 dakika)
 curl -L -o data/.raw/Istanbul.osm.gz https://download.bbbike.org/osm/bbbike/Istanbul/Istanbul.osm.gz
-python3 tools/extract_osm.py istanbul data/.raw/Istanbul.osm.gz
+python3 tools/extract_osm.py data/.raw/Istanbul.osm.gz istanbul
 ```
 
 ```bash

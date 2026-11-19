@@ -85,6 +85,91 @@ function expand(p) {
   };
 }
 
+// Passport stops anywhere in Türkiye: notable places around the visitor from Wikipedia's geosearch.
+// Only sights are kept (mosques, museums, castles, bazaars, parks...), not battles, schools or stadiums.
+const SIGHT = /cami|mescid|kilise|sinagog|müze|kale|hisar|sur\b|anıt|çarşı|bedesten|\bhan\b|hanı|kervansaray|hamam|köprü|park|bahçe|saray|kasr|köşk|kule|türbe|medrese|külliye|tapınak|antik|ören|şelale|göl\b|gölü|mağara|kanyon|vadi|plaj|koy\b|meydan|çeşme|kilise|manastır|mosque|church|synagogue|museum|castle|fortress|citadel|monument|bazaar|market|caravanserai|bath|bridge|park|garden|palace|mansion|tower|tomb|mausoleum|madrasa|temple|ancient|ruins|waterfall|lake|cave|canyon|valley|beach|square|fountain|monastery/i;
+const SKIP = /muharebe|savaş|battle|siege|kuşatma|lise|okul|üniversite|school|university|college|stadyum|stadium|hastane|hospital|belediye|seçim|election|futbol|kulüp|club|istasyon|gar\b|garı|station|otoyol|motorway|caddesi|sokak|mahalle|neighbourhood|ilçe|district|province|şirket|company|holding|televizyon|radyo|gazete/i;
+function sightCat(t) {
+  if (/cami|mescid|kilise|sinagog|manastır|mosque|church|synagogue|monastery|türbe|tomb|mausoleum|külliye/i.test(t)) return 'worship';
+  if (/müze|museum/i.test(t)) return 'museum';
+  if (/çarşı|bedesten|bazaar|market|\bhan\b|hanı|kervansaray|caravanserai/i.test(t)) return 'market';
+  if (/park|bahçe|garden|şelale|waterfall|göl|lake|vadi|valley|kanyon|canyon|plaj|beach|mağara|cave/i.test(t)) return 'park';
+  if (/kule|tower|tepe|seyir|view/i.test(t)) return 'view';
+  return 'history';
+}
+
+export async function fetchWikiStops(lat, lon, lang) {
+  const wiki = lang === 'tr' ? 'tr' : 'en';
+  const key = `wp:${wiki}:${Math.round(lat * 100) / 100},${Math.round(lon * 100) / 100}`;
+  const hit = cacheGet(key, 24 * 60 * 60 * 1000);
+  if (hit) return hit;
+  const ask = async (w) => {
+    const u = `https://${w}.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=10000&ggslimit=50&prop=coordinates|pageimages|extracts|description&pithumbsize=960&pilimit=50&colimit=50&exintro=1&explaintext=1&exsentences=2&exlimit=20`;
+    const d = await getJSON(u, {}, 15000);
+    return Object.values(d.query?.pages || {}).map((p) => ({ ...p, wiki: w }));
+  };
+  try {
+    let pages = await ask(wiki);
+    // English Wikipedia covers small Turkish towns thinly; fall back to Turkish articles.
+    if (wiki !== 'tr' && pages.filter((p) => SIGHT.test(p.title + ' ' + (p.description || ''))).length < 4) pages = pages.concat(await ask('tr'));
+    const seen = new Set();
+    const stops = pages
+      .filter((p) => p.coordinates && p.coordinates[0])
+      .filter((p) => { const t = p.title + ' ' + (p.description || ''); return SIGHT.test(t) && !SKIP.test(t); })
+      .map((p) => ({
+        id: `wp:${p.wiki}:${p.pageid}`,
+        name: p.title.replace(/\s*\([^)]*\)$/, ''),
+        lat: p.coordinates[0].lat, lon: p.coordinates[0].lon,
+        img: p.thumbnail?.source || '',
+        page: `https://${p.wiki}.wikipedia.org/?curid=${p.pageid}`,
+        desc: (p.extract || p.description || '').replace(/\s+/g, ' ').trim().slice(0, 260),
+        cat: [sightCat(p.title + ' ' + (p.description || ''))],
+        city: 'nearby'
+      }))
+      .filter((s) => (seen.has(s.name) ? false : seen.add(s.name)))
+      .map((s) => ({ ...s, d: distanceM({ lat, lon }, s) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 12)
+      .map(({ d, ...s }) => s);
+    cacheSet(key, stops);
+    return stops;
+  } catch (e) { return cacheAny(key) || []; }
+}
+
+// Restaurants, places of worship, hospitals... around any point, live from OpenStreetMap (Overpass).
+// The public servers are often busy, so this is best effort with a day of caching; the app falls back
+// to Google Maps search links when it fails.
+export async function fetchPlacesLive(lat, lon) {
+  const key = `pl:${Math.round(lat * 100) / 100},${Math.round(lon * 100) / 100}`;
+  const hit = cacheGet(key, 24 * 60 * 60 * 1000);
+  if (hit) return hit;
+  const a = (r) => `(around:${r},${lat},${lon})`;
+  const q = `[out:json][timeout:20];
+nwr${a(2500)}[amenity=place_of_worship][name];out center tags 60;
+nwr${a(1500)}[amenity=restaurant][name];out center tags 60;
+nwr${a(8000)}[shop=mall][name];out center tags 15;
+nwr${a(8000)}[amenity=hospital][name];out center tags 15;
+nwr${a(2500)}[amenity=pharmacy];out center tags 20;
+nwr${a(5000)}[amenity=police];out center tags 10;`;
+  for (const ep of ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass-api.de/api/interpreter']) {
+    try {
+      const d = await getJSON(ep, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, 14000);
+      const v = { live: true, worship: [], food: [], mall: [], hospital: [], pharmacy: [], police: [] };
+      for (const el of d.elements || []) {
+        const t = el.tags || {}, la = el.lat ?? el.center?.lat, lo = el.lon ?? el.center?.lon;
+        if (la == null) continue;
+        const yes = (x) => /yes|only/.test(t[x] || '');
+        const p = { name: t['name:en'] || t.name || '', local: t.name || '', lat: la, lon: lo, phone: t.phone || t['contact:phone'] || '', street: t['addr:street'] ? `${t['addr:street']}${t['addr:housenumber'] ? ' ' + t['addr:housenumber'] : ''}` : '', religion: t.religion || '', cuisine: t.cuisine || '', halal: yes('diet:halal'), vegetarian: yes('diet:vegetarian') || yes('diet:vegan'), kosher: yes('diet:kosher'), emergency: t.emergency === 'yes' };
+        const k = t.amenity === 'place_of_worship' ? 'worship' : t.amenity === 'restaurant' ? 'food' : t.shop === 'mall' ? 'mall' : t.amenity === 'hospital' ? 'hospital' : t.amenity === 'pharmacy' ? 'pharmacy' : t.amenity === 'police' ? 'police' : null;
+        if (k) v[k].push(p);
+      }
+      cacheSet(key, v);
+      return v;
+    } catch (e) { /* try the next server */ }
+  }
+  return cacheAny(key);
+}
+
 export function distanceM(a, b) {
   const R = 6371000, rad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;

@@ -234,6 +234,20 @@ h2.sec { margin-top: 4px; }
 .update { position: absolute; z-index: 1210; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: #fff; color: #1c1c1e; font-weight: 700; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
 .update span { flex: 1; }
 
+/* city picker, Google Maps fallback, Wikipedia link */
+.cities { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cities button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-2); text-align: left; cursor: pointer; }
+.cities button[aria-pressed="true"] { border-color: var(--violet-2); box-shadow: 0 0 0 3px rgba(139, 92, 246, .3); }
+.cities span { flex: 1; min-width: 0; }
+.cities b { display: block; font-family: var(--display); }
+.cities small { color: var(--muted); }
+.cities em { font-style: normal; font-weight: 800; color: var(--gold); }
+.cities .ico { color: var(--glow); }
+.gm { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .06); color: var(--glow); font-weight: 700; text-decoration: none; }
+.gm .ico { width: 18px; height: 18px; }
+.wiki { color: #5b34d6; font-weight: 800; text-decoration: none; }
+.note { font-size: .82rem; color: var(--gold); background: rgba(251, 191, 36, .1); border-radius: 12px; padding: 10px 12px; }
+
 /* photos */
 .my-photos { display: flex; flex-direction: column; gap: 8px; }
 .my-photos .btn.sm .ico { width: 16px; height: 16px; }

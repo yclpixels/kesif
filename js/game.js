@@ -9,7 +9,7 @@ export const XP_PHOTO = 150; // first photo taken at a passport stop
 
 const KEY = 'damga:game';
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-let G = Object.assign({ name: '', xp: 0, claims: {}, stamps: {}, fareDay: '', character: 'pusula', id: '', friends: [], saved: [], ratings: {}, photoLog: [], onboarded: false }, load());
+let G = Object.assign({ name: '', xp: 0, claims: {}, stamps: {}, fareDay: '', character: 'pusula', id: '', friends: [], saved: [], ratings: {}, photoLog: [], onboarded: false, stopMeta: {} }, load());
 if (!G.id) G.id = Math.random().toString(36).slice(2, 10);
 // Players from before the welcome screen existed should not see it.
 if (!G.onboarded && (G.xp > 0 || G.name)) G.onboarded = true;
@@ -41,12 +41,14 @@ export function levelInfo(xp = G.xp) {
 /* ---------- stamps ---------- */
 export const hasStamp = (cityId, id) => !!(G.stamps[cityId] && G.stamps[cityId][id]);
 export const stampCount = (cityId) => Object.keys(G.stamps[cityId] || {}).length;
-export const totalStamps = () => Object.keys(CITIES).reduce((n, c) => n + stampCount(c), 0);
+export const totalStamps = () => Object.keys(G.stamps).reduce((n, c) => n + stampCount(c), 0);
 function allStampDates() { return Object.values(G.stamps).flatMap((c) => Object.values(c)); }
 function stampIds() { return Object.values(G.stamps).flatMap((c) => Object.keys(c)); }
 
-export function addStamp(cityId, id) {
+// meta: for stops found live (Wikipedia), remember name and place so the passport can show them later.
+export function addStamp(cityId, id, meta) {
   if (hasStamp(cityId, id)) return 0;
+  if (meta) G.stopMeta = { ...(G.stopMeta || {}), [id]: meta };
   G.stamps[cityId] = { ...(G.stamps[cityId] || {}), [id]: new Date().toISOString() };
   G.xp += XP_STAMP;
   save();
@@ -70,6 +72,10 @@ export const QUESTS = [
   { id: 'w_worship', period: 'weekly', xp: 500, goal: 2, progress: () => catCount('worship') },
   { id: 's_ist', period: 'special', xp: 750, goal: 3, progress: () => stampCount('istanbul') },
   { id: 's_ank', period: 'special', xp: 750, goal: 3, progress: () => stampCount('ankara') },
+  { id: 's_izm', period: 'special', xp: 750, goal: 3, progress: () => stampCount('izmir') },
+  { id: 's_ant', period: 'special', xp: 750, goal: 3, progress: () => stampCount('antalya') },
+  { id: 's_kap', period: 'special', xp: 750, goal: 3, progress: () => stampCount('kapadokya') },
+  { id: 's_near', period: 'special', xp: 1000, goal: 3, progress: () => stampCount('nearby') },
   { id: 's_market', period: 'special', xp: 500, goal: 2, progress: () => catCount('market') },
   { id: 's_museum', period: 'special', xp: 500, goal: 3, progress: () => catCount('museum') },
   { id: 's_asia', period: 'special', xp: 500, goal: 1, progress: () => (has('kpier') ? 1 : 0) },
@@ -100,10 +106,15 @@ export const BADGES = [
   { id: 'first', test: () => totalStamps() >= 1 },
   { id: 'ist', test: () => stampCount('istanbul') === CITIES.istanbul.stamps.length },
   { id: 'ank', test: () => stampCount('ankara') === CITIES.ankara.stamps.length },
+  { id: 'izm', test: () => stampCount('izmir') === CITIES.izmir.stamps.length },
+  { id: 'ant', test: () => stampCount('antalya') === CITIES.antalya.stamps.length },
+  { id: 'kap', test: () => stampCount('kapadokya') === CITIES.kapadokya.stamps.length },
+  { id: 'near', test: () => stampCount('nearby') >= 5 },
   { id: 'market', test: () => catCount('market') >= 3 },
   { id: 'faith', test: () => catCount('worship') >= 3 },
   { id: 'asia', test: () => has('kpier') },
-  { id: 'two', test: () => stampCount('istanbul') > 0 && stampCount('ankara') > 0 },
+  // Two places with stamps: any two of the city packs, or a city pack plus a stop found nearby.
+  { id: 'two', test: () => Object.keys(G.stamps).filter((c) => stampCount(c) > 0).length >= 2 },
   { id: 'photo', test: () => (G.photoLog || []).length >= 5 },
   { id: 'lvl10', test: () => levelInfo().level >= 10 }
 ];
@@ -178,3 +189,5 @@ export function logPhoto(stop) {
 }
 
 export function setOnboarded() { G.onboarded = true; save(); }
+
+export const stopMeta = () => G.stopMeta || {};

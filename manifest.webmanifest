@@ -1,7 +1,7 @@
 {
-  "name": "Keşif — Istanbul & Ankara",
+  "name": "Keşif — Türkiye",
   "short_name": "Keşif",
-  "description": "Istanbul and Ankara as a game: collect stamps, earn XP, unlock characters. Plus fair taxi prices, prayer times and emergency help.",
+  "description": "Türkiye as a game: collect stamps at real places anywhere, earn XP, unlock characters. Plus fair taxi prices, prayer times and emergency help.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
