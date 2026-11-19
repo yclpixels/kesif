@@ -421,7 +421,7 @@ function renderStop() {
   const s = stopById(state.stopId); if (!s) return '';
   const info = STOP_INFO[s.id] || { cat: s.cat || ['history'], en: s.desc || '', tr: s.desc || '' };
   const c = CITIES[s.city] || NEARBY, got = G.game().stamps[s.city]?.[s.id];
-  const d = distanceM(here(), s);
+  const d = distanceM(here(), s), near = state.pos && distanceM(state.pos, s) <= CHECKIN_RADIUS + Math.min(state.pos.acc || 0, 100);
   // Rough times: walking 80 m/min, city driving ~18 km/h plus parking, transit ~13 km/h plus waiting.
   const walk = Math.max(1, Math.round(d * 1.3 / 80)), drive = Math.max(2, Math.round(d * 1.4 / 300 + 3)), transit = Math.max(5, Math.round(d * 1.3 / 220 + 8));
   const ph = PHOTOS[s.id] || (s.img ? { src: s.img, page: s.page, by: 'Wikipedia', lic: 'Wikimedia Commons' } : null), saved = G.isSaved(s.id);
@@ -437,20 +437,23 @@ function renderStop() {
     <div class="tags">${info.cat.map((k) => `<span class="tag">${esc(T('cat_' + k))}</span>`).join('')}<span class="tag quiet">${esc(cityName(c))}</span></div>
     <p>${esc(info[state.lang] || info.en)}</p>
     ${s.page ? `<a class="wiki" href="${esc(s.page)}" target="_blank" rel="noopener">${esc(T('read_wiki'))} →</a>` : ''}
+    ${got ? '' : near ? `<button type="button" class="btn big" id="checkin" data-id="${s.id}">${esc(T('get_stamp'))}</button>
+         <p class="muted" id="stop-msg" aria-live="polite"></p>`
+      : `<button type="button" class="btn big" data-route-stop="${s.id}">${ico('walk')}${esc(T('route_draw'))}</button>
+         <p class="muted" id="stop-msg" aria-live="polite">${esc(state.pos ? T('come_closer', { n: CHECKIN_RADIUS }) : T('need_loc'))}</p>`}
     <div class="facts"><span>${ico('pin')}${fmtDist(d)}</span>${d < 2500 ? `<span>${ico('walk')}${esc(T('min', { n: walk }))}</span>` : ''}<span>${ico('car')}${esc(T('min', { n: drive }))}</span><span>${ico('bus')}${esc(T('min', { n: transit }))}</span></div>
     <h2>${esc(T('rewards'))}</h2>
     <div class="rewards"><div>${ico('collection', 'gold')}<b>${esc(T('plus_xp', { n: G.XP_STAMP }))}</b></div><div>${medal(CITY_MEDAL[s.city] || 'near', true)}<b>${esc(s.city === 'nearby' ? T('bd_near') : T('city_badge', { city: cityName(c) }))}</b></div></div>
     ${got ? `<p class="done">${ico('check')}${esc(T('collected', { date: got.slice(0, 10) }))}</p>
       <div class="rate"><span>${esc(T(G.myRating(s.id) ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${s.id}:${n}" aria-label="${n}" aria-pressed="${n <= G.myRating(s.id)}">${ico('collection')}</button>`).join('')}</div></div>`
-      : `<button type="button" class="btn big" id="checkin" data-id="${s.id}">${esc(T('get_stamp'))}</button>
-         <p class="muted" id="stop-msg" aria-live="polite">${state.pos ? '' : esc(T('need_loc'))}</p>`}
+      : ''}
     <div class="my-photos">
       <div class="row"><h2>${esc(T('your_photos'))}</h2><button type="button" class="btn sm" data-photo="${s.id}">${ico('camera')}${esc(T('take_photo'))}</button></div>
       ${A.photosFor(s.id).length ? `<div class="strip">${A.photosFor(s.id).map((p) => `<button type="button" data-view="${p.id}"><img src="${A.photoUrl(p.id)}" alt="${esc(s.name)}"></button>`).join('')}</div>`
         : `<p class="muted">${esc(T('photo_hint', { n: G.XP_PHOTO }))}</p>`}
     </div>
-    <button type="button" class="btn ghost big" data-route-stop="${s.id}">${ico('walk')}${esc(T('route_draw'))}</button>
-    <a class="gm" href="${dirUrl(s)}" target="_blank" rel="noopener">${ico('map')}${esc(T('start'))} · Google →</a>
+    ${got || near ? `<button type="button" class="btn ghost big" data-route-stop="${s.id}">${ico('walk')}${esc(T('route_draw'))}</button>` : ''}
+    <a class="gm" href="${dirUrl(s)}" target="_blank" rel="noopener">${ico('map')}${esc(T('open_gmaps'))} →</a>
   </section>`;
 }
 function bindStop() {
@@ -1006,7 +1009,6 @@ function pickWorship(list) {
 function renderPray() {
   const pr = state.prayer, pl = state.places, np = pr ? nextPrayer(pr) : null, wx = state.weather;
   return `${backHead(T('t_pray'))}
-  <div class="glance"><div><small>${esc(T('weather'))}</small><b>${wx ? esc(wx.temp) + '°C' : '–'}</b><small>${wx ? esc(weatherText(state.lang, wx.code)) : ''}</small></div><div><small>${esc(T('local_time'))}</small><b>${clock()}</b><small>${esc(T('tz_note'))}</small></div></div>
   <section class="panel">
     <div class="row"><h2>${esc(T('prayer'))}</h2><span class="tag">${esc(T('prayer_src'))}</span></div>
     ${pr ? `<p><b>${esc(T('next_prayer', { name: T('p_' + np.k), time: np.time }))}</b></p><div class="ptimes">${['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].map((k) => `<span${np.k === k ? ' class="on"' : ''}><small>${esc(T('p_' + k))}</small>${esc(pr[k])}</span>`).join('')}</div>` : `<p class="muted">${esc(T('loading'))}</p>`}
