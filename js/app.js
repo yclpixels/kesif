@@ -647,7 +647,7 @@ function renderProfile() {
   <section class="panel">
     <div class="row"><h2>${esc(T('offline_title'))}</h2>${store.get('offline:' + state.city, '') ? `<span class="tag">${esc(store.get('offline:' + state.city, ''))}</span>` : ''}</div>
     <p class="muted">${esc(T('offline_note'))}</p>
-    <button type="button" class="btn" id="offline-btn">${ico('map')}${esc(T('offline_btn', { city: cityName() }))}</button>
+    <button type="button" class="btn" id="offline-btn">${ico('map')}${esc(T('offline_btn', { city: placeName() }))}</button>
     <p class="muted" id="offline-msg" aria-live="polite"></p>
   </section>
   <p class="credit">${esc(T('data_credit'))}</p>`;
@@ -961,8 +961,10 @@ async function saveOffline() {
     const tj = await (await fetch(style.sources.openmaptiles.url)).json();
     const tpl = tj.tiles[0];
     // Box around the city's stops (or around the visitor in Near me), with a little margin.
-    const pts = city().stamps.length ? city().stamps : [here()];
-    const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon), m = 0.012;
+    // A picked district or Near me: a ~3 km square around that spot instead.
+    const local = !!state.place || !city().stamps.length;
+    const pts = local ? [here()] : city().stamps;
+    const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon), m = local ? 0.03 : 0.012;
     const box = [Math.min(...lons) - m, Math.min(...lats) - m, Math.max(...lons) + m, Math.max(...lats) + m];
     const urls = [MAP_STYLE, style.sources.openmaptiles.url];
     for (const ext of ['.json', '.png', '@2x.json', '@2x.png']) urls.push(style.sprite + ext);
@@ -977,8 +979,14 @@ async function saveOffline() {
     await Promise.all([worker(), worker(), worker(), worker()]);
     // Places for this city pack, so lists work offline too.
     if (CITIES[state.city]) try { await cache.add(`./data/places-${state.city}.json`); } catch { /* ok */ }
+    // Places for all of Türkiye come in squares: keep the ones around here, and the district borders.
+    const h = here(), cy = Math.floor(h.lat / 0.25), cx = Math.floor(h.lon / 0.25);
+    for (const dir of ['grid', 'admin']) {
+      try { await cache.add(`./data/${dir}/index.json`); } catch { /* ok */ }
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) try { await cache.add(`./data/${dir}/${cy + dy}_${cx + dx}.json`); } catch { /* sea or empty square */ }
+    }
     store.set('offline:' + state.city, new Date().toISOString().slice(0, 10));
-    msg.textContent = T('offline_done', { city: cityName(), n: urls.length });
+    msg.textContent = T('offline_done', { city: placeName(), n: urls.length });
   } catch { msg.textContent = T('offline_fail'); }
   btn.disabled = false;
 }
@@ -1279,10 +1287,7 @@ function showWelcome() {
       <p class="wl-sub">${esc(T('welcome_sub'))}</p>
       <label for="wl-name">${esc(T('your_name'))}</label>
       <input id="wl-name" maxlength="20" placeholder="${esc(T('traveler'))}" autocomplete="nickname">
-      <div class="two">
-        <div><label for="wl-lang">${esc(T('language'))}</label><select id="wl-lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
-        <div><label for="wl-city">${esc(T('city_l'))}</label><select id="wl-city"><option value="nearby"${state.city === 'nearby' ? ' selected' : ''}>${esc(NEARBY.name[state.lang] || NEARBY.name.en)}</option>${Object.values(CITIES).map((c) => `<option value="${c.id}"${c.id === state.city ? ' selected' : ''}>${esc(cityName(c))}</option>`).join('')}</select></div>
-      </div>
+      <label for="wl-lang">${esc(T('language'))}</label><select id="wl-lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
       <button type="button" class="btn big" data-start="loc">${ico('locate')}${esc(T('start_loc'))}</button>
       <button type="button" class="btn ghost big" data-start="noloc">${esc(T('start_noloc'))}</button>
       <p class="muted center">${esc(T('loc_privacy'))}</p>
@@ -1291,12 +1296,13 @@ function showWelcome() {
   $('wl-lang').addEventListener('change', (e) => { state.lang = e.target.value; try { localStorage.setItem('damga:lang', state.lang); } catch {} const n = $('wl-name').value; showWelcome(); $('wl-name').value = n; renderAll(); });
 }
 function finishWelcome(withLoc) {
+  // No city to choose here: with location the app finds the district itself; without it, the
+  // province/district list opens so the visitor picks where they are.
   G.setName($('wl-name').value);
-  const c = $('wl-city').value;
   G.setOnboarded();
   $('welcome').hidden = true;
-  if (c !== state.city) setCity(c); else renderAll();
-  if (withLoc) locate();
+  renderAll();
+  if (withLoc) locate(); else openCityPicker();
 }
 
 /* ---------- shell ---------- */
