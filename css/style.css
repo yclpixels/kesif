@@ -566,3 +566,16 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .cities .chev { color: var(--muted); font-size: 1.3rem; }
 .link-back { border: 0; background: none; color: var(--glow); font: inherit; font-weight: 700; padding: 4px 0 10px; cursor: pointer; }
 .prov-title { margin: 0 0 10px; font-size: 1.3rem; }
+
+/* route preview in the place card */
+.pc-route { display: flex; flex-direction: column; gap: 8px; }
+.pc-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 12px; background: #eeeef3; }
+.pc-modes button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border: 0; border-radius: 10px; background: none; color: #3a3a3c; font: inherit; font-weight: 700; font-size: .88rem; cursor: pointer; }
+.pc-modes button[aria-pressed="true"] { background: #fff; color: #5b21b6; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+.pc-modes .ico { width: 16px; height: 16px; }
+.pc-eta { margin: 0; color: #3a3a3c; font-size: .92rem; }
+.pc-eta b { color: #1f9d55; font-size: 1.05rem; }
+.map-dark .pc-modes { background: #2a2a3a; }
+.map-dark .pc-modes button { color: #d6d6e2; }
+.map-dark .pc-modes button[aria-pressed="true"] { background: #44445a; color: #fff; }
+.map-dark .pc-eta { color: #d6d6e2; }

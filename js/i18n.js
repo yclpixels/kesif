@@ -431,3 +431,7 @@ Object.assign(S.en, { city_search: 'Search a province or district', packs_title:
 Object.assign(S.tr, { city_search: 'İl ya da ilçe ara', packs_title: 'Damga paketleri', all_provinces: 'Tüm iller', n_districts: '{n} ilçe', has_pack: 'damga paketi', centre_of: '{name} (merkez)' });
 Object.assign(S.de, { city_search: 'Provinz oder Bezirk suchen', packs_title: 'Stempelpakete', all_provinces: 'Alle Provinzen', n_districts: '{n} Bezirke', has_pack: 'Stempelpaket', centre_of: '{name} (Zentrum)' });
 Object.assign(S.ru, { city_search: 'Найти провинцию или район', packs_title: 'Наборы штампов', all_provinces: 'Все провинции', n_districts: 'районов: {n}', has_pack: 'набор штампов', centre_of: '{name} (центр)' });
+Object.assign(S.en, { nav_start: 'Start', mode_walk: 'Walk', mode_car: 'Drive', taxi_about: 'taxi ~{n} TL', route_need_loc: 'Turn on location to see the way there.' });
+Object.assign(S.tr, { nav_start: 'Başlat', mode_walk: 'Yürü', mode_car: 'Araç', taxi_about: 'taksi ~{n} TL', route_need_loc: 'Yolu görmek için konumu aç.' });
+Object.assign(S.de, { nav_start: 'Start', mode_walk: 'Zu Fuß', mode_car: 'Auto', taxi_about: 'Taxi ~{n} TL', route_need_loc: 'Standort einschalten, um den Weg zu sehen.' });
+Object.assign(S.ru, { nav_start: 'Начать', mode_walk: 'Пешком', mode_car: 'На машине', taxi_about: 'такси ~{n} TL', route_need_loc: 'Включите геолокацию, чтобы увидеть путь.' });

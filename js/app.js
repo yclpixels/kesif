@@ -227,11 +227,12 @@ function openPlace(p, kindLabel) {
     <div class="pc-head"><div><h2>${esc(p.name || p.local || kindLabel)}</h2>${p.local && p.name && p.local !== p.name ? `<p class="pc-local">${esc(p.local)}</p>` : ''}<small>${esc([p.name || p.local ? kindLabel : '', (kindLabel || '').includes(cuisineText(p.cuisine)) ? '' : cuisineText(p.cuisine)].filter(Boolean).join(' · '))}</small></div>
       <button type="button" class="round sm" data-pc-close aria-label="${esc(T('close'))}">✕</button></div>
     ${open !== null ? `<p class="pc-open ${open ? 'on' : 'off'}">${esc(T(open ? 'open_now' : 'closed_now'))}</p>` : ''}
-    <div class="pc-meta"><span>${ico('walk')}${fmtDist(d)} · ${esc(T('min', { n: walk }))}</span>${p.street ? `<span>${ico('pin')}${esc(p.street)}</span>` : ''}${tel ? `<span class="sel">${ico('bell')}${esc(tel)}</span>` : ''}</div>
+    <div class="pc-meta">${state.pos ? '' : `<span>${ico('walk')}${fmtDist(d)} · ${esc(T('min', { n: walk }))}</span>`}${p.street ? `<span>${ico('pin')}${esc(p.street)}</span>` : ''}${tel ? `<span class="sel">${ico('bell')}${esc(tel)}</span>` : ''}</div>
     ${tags.length ? `<div class="pc-tags">${tags.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
     ${p.hours ? `<details class="pc-hours"><summary>${ico('cal')}${esc(T('hours'))}</summary><pre>${esc(ohText(p.hours))}</pre></details>` : ''}
+    <div class="pc-route" id="pc-route"></div>
     <div class="pc-actions">
-      <button type="button" class="btn" data-route-card>${ico('walk')}${esc(T('route_draw'))}</button>
+      <button type="button" class="btn" data-route-card>${ico('walk')}${esc(T(state.pos ? 'nav_start' : 'route_draw'))}</button>
       ${tel ? `<a class="btn ghost" href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(T('call'))}</a>` : ''}
       ${p.web ? `<a class="btn ghost" href="${esc(p.web)}" target="_blank" rel="noopener">${esc(T('website'))}</a>` : ''}
       <button type="button" class="btn ghost" data-share aria-label="${esc(T('share_place'))}">${ico('share')}</button>
@@ -239,7 +240,28 @@ function openPlace(p, kindLabel) {
     <a class="pc-reviews" href="${mapUrl(p)}" target="_blank" rel="noopener">${ico('collection')}<span><b>${esc(T('reviews'))}</b><small>${esc(T('reviews_note'))}</small></span>${ico('chevron')}</a>
     <div class="rate pc-rate"><span>${esc(T(mine ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${key}:${n}" aria-label="${n}" aria-pressed="${n <= mine}">${ico('collection')}</button>`).join('')}</div></div>`;
   $('place-card').hidden = false;
+  if (state.cardPlace !== p) state.cardMode = null; // a new place: pick the travel mode again
   state.cardPlace = p; state.cardLabel = kindLabel;
+  previewRoute(p);
+}
+
+// Picking a place shows the way there at once: walking when it's close, by car when it's far,
+// with time, distance and (by car) a taxi estimate. "Start" then begins turn-by-turn guidance.
+const WALK_MAX = 2500;
+let previewRun = 0;
+async function previewRoute(p) {
+  const box = $('pc-route'); if (!box || !map) return;
+  if (!state.pos) { box.innerHTML = `<p class="muted">${esc(T('route_need_loc'))}</p>`; return; }
+  const run = ++previewRun, d = distanceM(state.pos, p);
+  const mode = state.cardMode || (d <= WALK_MAX ? 'walk' : 'car');
+  const seg = (m, icon, label) => `<button type="button" data-pc-mode="${m}" aria-pressed="${m === mode}">${ico(icon)}${esc(T(label))}</button>`;
+  box.innerHTML = `<div class="pc-modes">${seg('walk', 'walk', 'mode_walk')}${seg('car', 'car', 'mode_car')}</div><p class="pc-eta">${esc(T('loading'))}</p>`;
+  const r = await fetchRoute([state.pos, p], mode === 'car');
+  if (run !== previewRun || $('place-card').hidden || state.cardPlace !== p) return;
+  const km = r.dist / 1000, min = Math.max(1, Math.round(r.dur / 60));
+  const tx = city().taxi, fare = mode === 'car' && tx ? Math.round(Math.max(tx.min, tx.open + tx.perKm * km) / 10) * 10 : 0;
+  box.querySelector('.pc-eta').innerHTML = `<b>${min} ${esc(T('min_short'))}</b> · ${fmtDist(r.dist)}${fare ? ` · ${esc(T('taxi_about', { n: nf(fare) }))}` : ''}${r.real ? '' : ` · ${esc(T('route_straight'))}`}`;
+  drawLine('route', r.coords, { padBottom: $('place-card').offsetHeight + 40 });
 }
 
 // Send a place to a friend: the phone's share sheet, or copy the link.
@@ -265,6 +287,13 @@ function hero3d(c, size) {
   }
   const poster = artImage(c.id);
   return `<model-viewer class="hero3d" src="${glb}" ${poster ? `poster="${poster}"` : ''} alt="${esc(T('ch_' + c.id))}" loading="eager" camera-controls auto-rotate autoplay animation-name="idle" disable-zoom interaction-prompt="none" shadow-intensity="0.8" style="width:${size}px;height:${size}px"></model-viewer>`;
+}
+
+// Closing the card also removes its route preview (not a trip that is being guided).
+function closeCard() {
+  if ($('place-card').hidden) return;
+  $('place-card').hidden = true; previewRun++;
+  if (!nav) clearLines();
 }
 
 /* ---------- toast ---------- */
@@ -783,7 +812,7 @@ async function fetchRoute(points, car, steps = false) {
   let dist = 0; for (let i = 1; i < points.length; i++) dist += distanceM(points[i - 1], points[i]) * 1.3;
   return { coords: points.map((p) => [p.lon, p.lat]), dist, dur: dist / (car ? 5 : 1.3), real: false, steps: [] };
 }
-function drawLine(id, coords, { dashed = false, fit = true } = {}) {
+function drawLine(id, coords, { dashed = false, fit = true, padBottom = 240 } = {}) {
   const draw = () => {
     const data = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }, { type: 'Feature', geometry: { type: 'Point', coordinates: coords[coords.length - 1] } }] };
     if (map.getSource(id)) map.getSource(id).setData(data);
@@ -796,7 +825,7 @@ function drawLine(id, coords, { dashed = false, fit = true } = {}) {
     }
     if (!fit) return;
     const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
-    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 170, bottom: 240, left: 50, right: 50 }, pitch: 45, duration: 900 });
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 120, bottom: Math.min(padBottom, map.getContainer().clientHeight - 200), left: 50, right: 50 }, pitch: 45, duration: 900 });
   };
   setTimeout(() => { map.resize(); if (map.isStyleLoaded()) draw(); else map.once('idle', draw); }, 60);
 }
@@ -827,14 +856,14 @@ function speak(text) {
   if (!nav || nav.mute || !('speechSynthesis' in window)) return;
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = { tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang] || 'en-US'; speechSynthesis.speak(u); } catch { /* no voice */ }
 }
-async function routeTo(dest) {
+async function routeTo(dest, mode) {
   if (!map) return;
   clearLines();
   $('place-card').hidden = true; $('tools-sheet').hidden = true;
   state.tab = 'map'; state.page = null; renderNav(); renderView();
   // Guiding needs the real position: ask for it now if we don't have it yet.
   if (!state.pos) { try { const p = await getPosition(8000); state.pos = { lat: p.lat, lon: p.lon, acc: p.acc }; startWatch(); moveMe(); } catch { /* show the route from the map centre */ } }
-  const h = state.pos || here(), car = distanceM(h, dest) > 4000;
+  const h = state.pos || here(), car = mode ? mode === 'car' : distanceM(h, dest) > WALK_MAX;
   nav = { dest, car, mute: store.get('navMute', false), step: 1, lastReroute: 0, spoken: -1, live: !!state.pos };
   document.body.classList.add('navigating');
   $('nav-top').innerHTML = `<span class="nav-ico">…</span><div><b>${esc(T('loading'))}</b></div>`;
@@ -1369,9 +1398,10 @@ function init() {
   fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.prov) openCityPicker({ prov: +el.dataset.prov });
+    if (el.dataset.pcMode) { state.cardMode = el.dataset.pcMode; previewRoute(state.cardPlace); }
+    else if (el.dataset.prov) openCityPicker({ prov: +el.dataset.prov });
     else if (el.hasAttribute('data-prov-back')) openCityPicker();
     else if (el.dataset.place) { const [a, b] = el.dataset.place.split(':').map(Number); setPlace(a, b); }
     else if (el.dataset.say) sayTr(el.dataset.say);
@@ -1381,7 +1411,7 @@ function init() {
     else if (el.hasAttribute('data-nav-end')) endNav();
     else if (el.hasAttribute('data-nav-mute')) { nav.mute = !nav.mute; store.set('navMute', nav.mute); if (nav.mute) try { speechSynthesis.cancel(); } catch { /* none */ } navDraw(); }
     else if (el.hasAttribute('data-nav-overview')) { nav.overview = !nav.overview; if (nav.overview) drawLine('route', nav.r.coords); else navUpdate(); }
-    else if (el.hasAttribute('data-route-card')) { if (state.cardPlace) routeTo(state.cardPlace); }
+    else if (el.hasAttribute('data-route-card')) { if (state.cardPlace) routeTo(state.cardPlace, state.cardMode || undefined); }
     else if (el.dataset.routeStop) { const st = stopById(el.dataset.routeStop); if (st) routeTo(st); }
     else if (el.hasAttribute('data-route-clear')) clearLines();
     else if (el.dataset.hours) { state.hours = +el.dataset.hours; renderView(); }
@@ -1391,7 +1421,7 @@ function init() {
     else if (el.hasAttribute('data-reload')) location.reload();
     else if (el.dataset.collect) { collectStop(el.dataset.collect).then((r) => { if (r.err) toast(r.err); }); }
     else if (el.hasAttribute('data-cel-close')) $('celebrate').hidden = true;
-    else if (el.hasAttribute('data-pc-close')) $('place-card').hidden = true;
+    else if (el.hasAttribute('data-pc-close')) closeCard();
     else if (el.dataset.start) finishWelcome(el.dataset.start === 'loc');
     else if (el.dataset.photo !== undefined) startPhoto(el.dataset.photo);
     else if (el.dataset.view) openViewer(el.dataset.view);
@@ -1425,7 +1455,7 @@ function init() {
   $('mq-ico').innerHTML = ico('search');
   $('mq').placeholder = T('msearch_ph');
   $('mq').addEventListener('input', (e) => onSearchInput(e.target.value));
-  $('mq').addEventListener('focus', (e) => { document.body.classList.add('searching'); $('place-card').hidden = true; onSearchInput(e.target.value); });
+  $('mq').addEventListener('focus', (e) => { document.body.classList.add('searching'); closeCard(); onSearchInput(e.target.value); });
   $('mq-cancel').textContent = T('close');
   $('mq-cancel').addEventListener('click', () => endSearch(true));
   $('mq').addEventListener('keydown', (e) => { if (e.key === 'Enter' && lastHits.length) openHit(0); if (e.key === 'Escape') endSearch(false); });
@@ -1443,7 +1473,7 @@ function init() {
     const go = () => { if (!asked) { asked = true; startWatch(); } };
     try { navigator.permissions.query({ name: 'geolocation' }).then((r) => { if (r.state !== 'denied') go(); }).catch(go); } catch { go(); }
   }
-  if (map) map.on('click', () => { $('place-card').hidden = true; endSearch(false); });
+  if (map) map.on('click', () => { closeCard(); endSearch(false); });
   $('big').addEventListener('click', () => { $('big').hidden = true; });
   if (map) map.on('dragstart', () => { state.follow = false; }); // moving the map yourself stops following
   loadLive();
