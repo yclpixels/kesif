@@ -32,7 +32,8 @@ const T = (k, v) => t(state.lang, k, v);
 const city = () => (state.city === 'nearby' ? NEARBY : CITIES[state.city]);
 const cityName = (c = city()) => c.name[state.lang] || c.name.en;
 // Where to look: the visitor, else the city pack's centre, else the last place we saw them, else Istanbul.
-const here = () => state.pos || city().center || store.get('lastPos', null) || CITIES.istanbul.center;
+// A city chosen by hand wins over a real position far away (you can browse Antalya from Ankara).
+const here = () => (state.pos && !(state.manualCity && city().center && distanceM(state.pos, city().center) > 60000) ? state.pos : null) || city().center || store.get('lastPos', null) || CITIES.istanbul.center;
 const nf = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : state.lang);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 // Open the place itself (its page with hours, reviews, phone), not just a dropped pin.
@@ -93,13 +94,15 @@ function pickCityFor(p) {
   return false;
 }
 async function locate() {
+  state.manualCity = false; // "find me" always follows the real position
   try {
     const p = await getPosition();
     state.pos = { lat: p.lat, lon: p.lon, acc: p.acc };
     if (pickCityFor(p)) renderAll();
-    toast('');
+    moveMe();
+    toast(p.acc > 300 ? T('loc_weak', { n: Math.round(p.acc) }) : '');
     startWatch();
-  } catch { toast(T('need_loc')); }
+  } catch (e) { toast(T(e && e.code === 1 ? 'loc_denied' : 'need_loc')); }
   centerMap(); loadLive();
 }
 
@@ -113,8 +116,12 @@ function startWatch() {
     state.pos = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy };
     moveMe();
     if (Date.now() - lastDraw > 4000) { lastDraw = Date.now(); renderMapChrome(); }
-    if (first) { if (pickCityFor(state.pos)) renderAll(); centerMap(); loadLive(); }
-  }, () => { /* keep the last known position */ }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    if (first) { if (!state.manualCity && pickCityFor(state.pos)) renderAll(); centerMap(); loadLive(); }
+    if (nav) navUpdate();
+  }, (e) => {
+    // Permission taken away: stop asking. Other errors (no signal indoors): keep the last known position.
+    if (e.code === 1) { navigator.geolocation.clearWatch(watchId); watchId = null; store.set('loc', false); toast(T('loc_denied')); }
+  }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 30000 });
 }
 
 // One place for collecting a stamp, used by the detail page and the "you are here" banner.
@@ -154,22 +161,58 @@ function celebrate(stop, xp, beforeLevel) {
 }
 
 // Apple Maps style place card for restaurants, places of worship and hospitals.
+// Opening hours: understands the common OpenStreetMap forms ("Mo-Fr 09:00-18:00; Sa 10:00-14:00", "24/7").
+// Returns true / false, or null when the text is something unusual.
+const OH_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+function openNow(oh, now = new Date()) {
+  if (!oh) return null;
+  if (oh.trim() === '24/7') return true;
+  const day = now.getDay(), mins = now.getHours() * 60 + now.getMinutes();
+  let result = null;
+  for (const rule of oh.replace(/\s*-\s*/g, '-').split(';').map((r) => r.trim()).filter(Boolean)) {
+    const m = rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?,?)+)?\s*(off|closed|(?:\d\d:\d\d-\d\d:\d\d,?\s*)+)$/);
+    if (!m) return result;
+    if (result === null) result = false; // a day the rules don't list is closed
+    let days = m[1] ? [] : [0, 1, 2, 3, 4, 5, 6];
+    for (const part of (m[1] || '').split(',').filter(Boolean)) {
+      const [a, b] = part.split('-').map((x) => OH_DAYS.indexOf(x));
+      if (b === undefined) days.push(a); else for (let i = a; ; i = (i + 1) % 7) { days.push(i); if (i === b) break; }
+    }
+    const yesterday = (day + 6) % 7;
+    if (/off|closed/.test(m[2])) { if (days.includes(day)) result = false; continue; }
+    for (const span of m[2].split(',').map((x) => x.trim()).filter(Boolean)) {
+      const [h1, m1, h2, m2] = span.match(/\d\d/g).map(Number), a = h1 * 60 + m1, b = h2 * 60 + m2;
+      if (days.includes(day)) { if (result !== true) result = b > a ? mins >= a && mins < b : mins >= a; }
+      if (b <= a && days.includes(yesterday) && mins < b) result = true; // past midnight
+    }
+  }
+  return result;
+}
+const DAY_NAMES = { tr: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'], de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'] };
+const ohText = (oh) => (DAY_NAMES[state.lang] ? oh.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/g, (d) => DAY_NAMES[state.lang][OH_DAYS.indexOf(d)]) : oh).replace(/;\s*/g, '\n').replace(/\boff\b/g, T('closed_now').toLowerCase());
+const placeKey = (p) => `p_${p.lat.toFixed(4)}_${p.lon.toFixed(4)}`;
+
 function openPlace(p, kindLabel) {
   const d = distanceM(here(), p), walk = Math.max(1, Math.round(d * 1.3 / 80));
-  const q = [p.local || p.name, p.street, CITIES[state.city]?.name.en].filter(Boolean).join(', ');
-  const dir = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}&travelmode=walking`;
   const tel = (p.phone || '').split(';')[0].trim();
+  const open = openNow(p.hours), key = placeKey(p), mine = G.myRating(key);
+  const tags = [p.halal && T('halal'), p.vegetarian && T('vegetarian'), p.kosher && T('kosher'), p.outdoor && T('outdoor')].filter(Boolean);
   $('place-card').innerHTML = `
-    <div class="pc-head"><div><h2>${esc(p.name || p.local || kindLabel)}</h2><small>${esc([kindLabel, cuisineText(p.cuisine)].filter(Boolean).join(' · '))}</small></div>
+    <div class="pc-head"><div><h2>${esc(p.name || p.local || kindLabel)}</h2>${p.local && p.name && p.local !== p.name ? `<p class="pc-local">${esc(p.local)}</p>` : ''}<small>${esc([kindLabel, (kindLabel || '').includes(cuisineText(p.cuisine)) ? '' : cuisineText(p.cuisine)].filter(Boolean).join(' · '))}</small></div>
       <button type="button" class="round sm" data-pc-close aria-label="${esc(T('close'))}">✕</button></div>
+    ${open !== null ? `<p class="pc-open ${open ? 'on' : 'off'}">${esc(T(open ? 'open_now' : 'closed_now'))}</p>` : ''}
     <div class="pc-meta"><span>${ico('walk')}${fmtDist(d)} · ${esc(T('min', { n: walk }))}</span>${p.street ? `<span>${ico('pin')}${esc(p.street)}</span>` : ''}${tel ? `<span class="sel">${ico('bell')}${esc(tel)}</span>` : ''}</div>
+    ${tags.length ? `<div class="pc-tags">${tags.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
+    ${p.hours ? `<details class="pc-hours"><summary>${ico('cal')}${esc(T('hours'))}</summary><pre>${esc(ohText(p.hours))}</pre></details>` : ''}
     <div class="pc-actions">
       <button type="button" class="btn" data-route-card>${ico('walk')}${esc(T('route_draw'))}</button>
       ${tel ? `<a class="btn ghost" href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(T('call'))}</a>` : ''}
-      <a class="btn ghost" href="${mapUrl(p)}" target="_blank" rel="noopener">${esc(T('open_maps'))}</a>
-    </div>`;
+      ${p.web ? `<a class="btn ghost" href="${esc(p.web)}" target="_blank" rel="noopener">${esc(T('website'))}</a>` : ''}
+    </div>
+    <a class="pc-reviews" href="${mapUrl(p)}" target="_blank" rel="noopener">${ico('collection')}<span><b>${esc(T('reviews'))}</b><small>${esc(T('reviews_note'))}</small></span>${ico('chevron')}</a>
+    <div class="rate pc-rate"><span>${esc(T(mine ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${key}:${n}" aria-label="${n}" aria-pressed="${n <= mine}">${ico('collection')}</button>`).join('')}</div></div>`;
   $('place-card').hidden = false;
-  state.cardPlace = p;
+  state.cardPlace = p; state.cardLabel = kindLabel;
 }
 
 /* ---------- toast ---------- */
@@ -620,28 +663,29 @@ function openHit(i) {
 /* ---------- routes drawn in the app ---------- */
 // Walking (or driving, for far places) along real streets, from the free OSRM servers of OpenStreetMap Germany.
 const ROUTER = 'https://routing.openstreetmap.de';
-async function fetchRoute(points, car) {
+async function fetchRoute(points, car, steps = false) {
   const prof = car ? 'routed-car/route/v1/driving' : 'routed-foot/route/v1/foot';
   const path = points.map((p) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
   try {
-    const d = await (await fetch(`${ROUTER}/${prof}/${path}?overview=full&geometries=geojson`)).json();
+    const d = await (await fetch(`${ROUTER}/${prof}/${path}?overview=full&geometries=geojson${steps ? '&steps=true' : ''}`)).json();
     const r = d.routes && d.routes[0];
-    if (r) return { coords: r.geometry.coordinates, dist: r.distance, dur: r.duration, real: true };
+    if (r) return { coords: r.geometry.coordinates, dist: r.distance, dur: r.duration, real: true, steps: steps ? r.legs.flatMap((l) => l.steps) : [] };
   } catch { /* fall back to a straight line */ }
   let dist = 0; for (let i = 1; i < points.length; i++) dist += distanceM(points[i - 1], points[i]) * 1.3;
-  return { coords: points.map((p) => [p.lon, p.lat]), dist, dur: dist / (car ? 5 : 1.3), real: false };
+  return { coords: points.map((p) => [p.lon, p.lat]), dist, dur: dist / (car ? 5 : 1.3), real: false, steps: [] };
 }
-function drawLine(id, coords, { dashed = false } = {}) {
+function drawLine(id, coords, { dashed = false, fit = true } = {}) {
   const draw = () => {
     const data = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }, { type: 'Feature', geometry: { type: 'Point', coordinates: coords[coords.length - 1] } }] };
     if (map.getSource(id)) map.getSource(id).setData(data);
     else {
       map.addSource(id, { type: 'geojson', data });
-      map.addLayer({ id: id + '-case', type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9 } });
-      map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7c3aed', 'line-width': 5, ...(dashed ? { 'line-dasharray': [1.6, 1.1] } : {}) } });
+      map.addLayer({ id: id + '-case', type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 10 } });
+      map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7c3aed', 'line-width': 6, ...(dashed ? { 'line-dasharray': [1.6, 1.1] } : {}) } });
       // the end of the line: a white-ringed violet dot
       map.addLayer({ id: id + '-end', type: 'circle', source: id, filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 8, 'circle-color': '#7c3aed', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } });
     }
+    if (!fit) return;
     const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
     map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 170, bottom: 240, left: 50, right: 50 }, pitch: 45, duration: 900 });
   };
@@ -649,23 +693,104 @@ function drawLine(id, coords, { dashed = false } = {}) {
 }
 function clearLines() {
   if (!map) return;
+  endNav(true);
   for (const id of ['route', 'plan']) for (const l of [id + '-end', id, id + '-case']) if (map.getLayer(l)) map.removeLayer(l);
   for (const id of ['route', 'plan']) if (map.getSource(id)) map.removeSource(id);
   $('route-chip').hidden = true;
 }
+
+/* ---------- turn-by-turn navigation ---------- */
+// "Rota çiz" starts guiding at once: the map follows you heading-up, the next turn is shown (and spoken),
+// the route is recalculated when you walk off it, and arriving ends it.
+let nav = null, wakeLock = null;
+const bearing = (a, b) => { const r = Math.PI / 180, y = Math.sin((b.lon - a.lon) * r) * Math.cos(b.lat * r), x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lon - a.lon) * r); return (Math.atan2(y, x) / r + 360) % 360; };
+const pt = (c) => ({ lat: c[1], lon: c[0] });
+function stepText(st) {
+  if (!st) return '';
+  const m = st.maneuver || {}, mod = (m.modifier || 'straight').replace(' ', '_');
+  let key = m.type === 'arrive' ? 'nav_arrive' : m.type === 'depart' ? 'nav_depart' : /roundabout|rotary/.test(m.type) ? 'nav_round' : 'nav_' + mod;
+  const txt = T(key, { n: m.exit || 1 });
+  return st.name && m.type !== 'arrive' ? `${txt} · ${st.name}` : txt;
+}
+const STEP_ICON = { left: '↰', right: '↱', slight_left: '↖', slight_right: '↗', sharp_left: '↰', sharp_right: '↱', straight: '↑', uturn: '↶' };
+function stepIcon(st) { const m = st?.maneuver || {}; return m.type === 'arrive' ? '◎' : /roundabout|rotary/.test(m.type) ? '⟳' : STEP_ICON[(m.modifier || 'straight').replace(' ', '_')] || '↑'; }
+function speak(text) {
+  if (!nav || nav.mute || !('speechSynthesis' in window)) return;
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = { tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang] || 'en-US'; speechSynthesis.speak(u); } catch { /* no voice */ }
+}
 async function routeTo(dest) {
   if (!map) return;
   clearLines();
-  $('place-card').hidden = true;
+  $('place-card').hidden = true; $('tools-sheet').hidden = true;
   state.tab = 'map'; state.page = null; renderNav(); renderView();
-  const h = here(), car = distanceM(h, dest) > 4000;
-  $('route-chip').innerHTML = `<span>${esc(T('loading'))}</span>`; $('route-chip').hidden = false;
-  const r = await fetchRoute([h, dest], car);
-  drawLine('route', r.coords);
-  const km = r.dist >= 1000 ? `${(r.dist / 1000).toFixed(1)} km` : `${Math.round(r.dist / 10) * 10} m`, min = Math.max(1, Math.round(r.dur / 60));
-  const g = `https://www.google.com/maps/dir/?api=1&origin=${h.lat},${h.lon}&destination=${dest.lat},${dest.lon}&travelmode=${car ? 'driving' : 'walking'}`;
-  $('route-chip').innerHTML = `${ico(car ? 'car' : 'walk')}<span><b>${esc(dest.name || dest.local || '')}</b><small>${esc(T(car ? 'route_drive' : 'route_walk', { km, n: min }))}${r.real ? '' : ' · ' + esc(T('route_straight'))}</small></span>
-    <a class="btn sm ghost" href="${g}" target="_blank" rel="noopener">Google</a><button type="button" class="round sm" data-route-clear aria-label="${esc(T('close'))}">✕</button>`;
+  // Guiding needs the real position: ask for it now if we don't have it yet.
+  if (!state.pos) { try { const p = await getPosition(8000); state.pos = { lat: p.lat, lon: p.lon, acc: p.acc }; startWatch(); moveMe(); } catch { /* show the route from the map centre */ } }
+  const h = state.pos || here(), car = distanceM(h, dest) > 4000;
+  nav = { dest, car, mute: store.get('navMute', false), step: 1, lastReroute: 0, spoken: -1, live: !!state.pos };
+  document.body.classList.add('navigating');
+  $('nav-top').innerHTML = `<span class="nav-ico">…</span><div><b>${esc(T('loading'))}</b></div>`;
+  $('nav-top').hidden = $('nav-bottom').hidden = false;
+  await navRoute(h, true);
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* not allowed */ }
+}
+async function navRoute(from, first) {
+  if (!nav) return;
+  const r = await fetchRoute([from, nav.dest], nav.car, true);
+  if (!nav) return;
+  nav.r = r; nav.step = r.steps.length > 1 ? 1 : 0; nav.spoken = -1;
+  drawLine('route', r.coords, { fit: !nav.live });
+  if (first && nav.live) map.easeTo({ center: [from.lon, from.lat], zoom: 17.5, pitch: 60, bearing: r.coords.length > 1 ? bearing(pt(r.coords[0]), pt(r.coords[Math.min(3, r.coords.length - 1)])) : 0, duration: 900 });
+  navDraw();
+}
+function navDraw() {
+  if (!nav || !nav.r) return;
+  const r = nav.r, pos = state.pos || here();
+  const st = r.steps[nav.step];
+  const toTurn = st ? distanceM(pos, pt(st.maneuver.location)) : distanceM(pos, nav.dest);
+  // remaining: straight to the next turn, then the route's own lengths after it
+  const left = st ? toTurn + r.steps.slice(nav.step).reduce((a, x) => a + x.distance, 0) : distanceM(pos, nav.dest);
+  const secs = left / (nav.car ? (r.dist / r.dur || 8) : 1.3);
+  const eta = new Date(Date.now() + secs * 1000).toLocaleTimeString(state.lang === 'en' ? 'en-GB' : state.lang, { hour: '2-digit', minute: '2-digit' });
+  const arrive = st && st.maneuver.type === 'arrive';
+  const line = arrive ? (nav.dest.name || nav.dest.local || T('nav_follow')) : st ? stepText(st) : T('nav_follow');
+  $('nav-top').innerHTML = `<span class="nav-ico" aria-hidden="true">${st ? stepIcon(st) : '↑'}</span><div><small>${esc(toTurn < 10 ? T('nav_now') : T(arrive ? 'nav_dest_in' : 'nav_in', { d: fmtDist(toTurn) }))}</small><b>${esc(line)}</b></div>`
+    + (!nav.live ? `<p class="nav-note">${esc(T('nav_noloc'))}</p>` : '') + (!r.real ? `<p class="nav-note">${esc(T('route_straight'))}</p>` : '');
+  $('nav-bottom').innerHTML = `<div><b>${Math.max(1, Math.round(secs / 60))} ${esc(T('min_short'))}</b><small>${fmtDist(left)} · ${esc(T('nav_eta', { t: eta }))}</small></div>
+    <button type="button" class="round sm" data-nav-mute aria-label="${esc(T('nav_sound'))}" aria-pressed="${!nav.mute}">${nav.mute ? '🔇' : '🔊'}</button>
+    <button type="button" class="round sm" data-nav-overview aria-label="${esc(T('nav_overview'))}">${ico('map')}</button>
+    <button type="button" class="btn nav-end" data-nav-end>${esc(T('nav_end'))}</button>`;
+  if (st && !arrive && nav.spoken !== nav.step) { nav.spoken = nav.step; speak(line); }
+}
+function navUpdate() {
+  if (!nav || !nav.r || !state.pos) return;
+  const pos = state.pos, r = nav.r;
+  if (!nav.live) { nav.live = true; }
+  // Arrived?
+  if (distanceM(pos, nav.dest) < 25 + Math.min(pos.acc || 0, 30)) { speak(T('nav_arrive')); toast(T('nav_arrive') + ' ' + (nav.dest.name || '')); endNav(); return; }
+  // Next turn passed?
+  const st = r.steps[nav.step];
+  if (st && st.maneuver.type !== 'arrive' && distanceM(pos, pt(st.maneuver.location)) < 15) nav.step = Math.min(nav.step + 1, r.steps.length - 1);
+  // Off the route by more than ~40 m: recalculate (at most every 15 s).
+  let off = Infinity; for (let i = 0; i < r.coords.length; i += 1) off = Math.min(off, distanceM(pos, pt(r.coords[i])));
+  if (r.real && off > 40 + Math.min(pos.acc || 0, 40) && Date.now() - nav.lastReroute > 15000) {
+    nav.lastReroute = Date.now(); toast(T('nav_off')); navRoute(pos, false); return;
+  }
+  // Follow the walker, heading toward the next point of the route.
+  if (!nav.overview) {
+    let k = 0, best = Infinity; r.coords.forEach((c, i) => { const d = distanceM(pos, pt(c)); if (d < best) { best = d; k = i; } });
+    const ahead = pt(r.coords[Math.min(k + 2, r.coords.length - 1)]);
+    map.easeTo({ center: [pos.lon, pos.lat], zoom: 17.5, pitch: 60, bearing: distanceM(pos, ahead) > 5 ? bearing(pos, ahead) : map.getBearing(), duration: 900 });
+  }
+  navDraw();
+}
+function endNav(silent) {
+  if (!nav) return;
+  nav = null;
+  document.body.classList.remove('navigating');
+  $('nav-top').hidden = $('nav-bottom').hidden = true;
+  try { speechSynthesis.cancel(); } catch { /* none */ }
+  try { wakeLock?.release(); } catch { /* none */ } wakeLock = null;
+  if (!silent) { clearLines(); map.easeTo({ bearing: 0, pitch: 58, duration: 600 }); renderMapChrome(); }
 }
 
 // Install: Android/Chrome gives us a prompt; iPhone needs the Share menu.
@@ -991,8 +1116,8 @@ function setCity(id) {
   state.city = id; store.set('city', id);
   if (id !== 'nearby') NEARBY.stamps = [];
   clearLines();
-  // A chosen city pack wins over a real position elsewhere.
-  if (state.pos && city().center && distanceM(state.pos, city().center) > 60000) state.pos = null;
+  // A chosen city pack wins over a real position elsewhere (see here()).
+  state.manualCity = true;
   state.weather = state.prayer = state.places = null;
   centerMap(); renderAll(); loadLive();
 }
@@ -1000,9 +1125,12 @@ function setCity(id) {
 function init() {
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.hasAttribute('data-route-card')) { if (state.cardPlace) routeTo(state.cardPlace); }
+    if (el.hasAttribute('data-nav-end')) endNav();
+    else if (el.hasAttribute('data-nav-mute')) { nav.mute = !nav.mute; store.set('navMute', nav.mute); if (nav.mute) try { speechSynthesis.cancel(); } catch { /* none */ } navDraw(); }
+    else if (el.hasAttribute('data-nav-overview')) { nav.overview = !nav.overview; if (nav.overview) drawLine('route', nav.r.coords); else navUpdate(); }
+    else if (el.hasAttribute('data-route-card')) { if (state.cardPlace) routeTo(state.cardPlace); }
     else if (el.dataset.routeStop) { const st = stopById(el.dataset.routeStop); if (st) routeTo(st); }
     else if (el.hasAttribute('data-route-clear')) clearLines();
     else if (el.dataset.hours) { state.hours = +el.dataset.hours; renderView(); }
@@ -1020,7 +1148,7 @@ function init() {
     else if (el.dataset.vdel) $('vconfirm').hidden = false;
     else if (el.dataset.vdelYes) { A.deletePhoto(el.dataset.vdelYes).then(() => { $('viewer').hidden = true; renderAll(); }); }
     else if (el.hasAttribute('data-vclose')) $('viewer').hidden = true;
-    else if (el.dataset.rate) { const [id, n] = el.dataset.rate.split(':'); G.rate(id, +n); renderView(); }
+    else if (el.dataset.rate) { const [id, n] = el.dataset.rate.split(':'); G.rate(id, +n); if (id.startsWith('p_') && state.cardPlace) openPlace(state.cardPlace, state.cardLabel); else renderView(); }
     else if (el.dataset.scroll) $(el.dataset.scroll)?.scrollIntoView({ behavior: 'smooth' });
     else if (el.dataset.save) { const on = G.toggleSaved(el.dataset.save); el.classList.toggle('on', on); el.setAttribute('aria-pressed', on); el.setAttribute('aria-label', T(on ? 'saved' : 'save')); toast(T(on ? 'saved' : 'save') + (on ? ' ✓' : '')); if (!on) toast(''); }
     else if (el.dataset.tab) goTab(el.dataset.tab);
@@ -1057,7 +1185,13 @@ function init() {
   A.loadAlbum().then(() => renderAll());
   if (!G.game().onboarded) showWelcome();
   // Resume live location if the visitor already allowed it.
-  try { navigator.permissions?.query({ name: 'geolocation' }).then((r) => { if (r.state === 'granted' && store.get('loc', false)) startWatch(); }).catch(() => {}); } catch { /* old browser */ }
+  // Someone who shared their location before gets it again at once. Safari often answers "prompt" to the
+  // permissions query even when allowed, so only a clear "denied" stops us.
+  if (store.get('loc', false)) {
+    let asked = false;
+    const go = () => { if (!asked) { asked = true; startWatch(); } };
+    try { navigator.permissions.query({ name: 'geolocation' }).then((r) => { if (r.state !== 'denied') go(); }).catch(go); } catch { go(); }
+  }
   if (map) map.on('click', () => { $('place-card').hidden = true; endSearch(false); });
   loadLive();
   if ('serviceWorker' in navigator) {

@@ -23,7 +23,8 @@ from build_places import CITIES, ROOT  # noqa: E402
 KIND = {b"restaurant": "food", b"pharmacy": "pharmacy", b"hospital": "hospital", b"police": "police", b"place_of_worship": "worship"}
 WANT = set(KIND) | {b"mall"}
 KEEP = {"name", "name:en", "phone", "contact:phone", "addr:street", "addr:housenumber", "cuisine", "diet:halal",
-        "diet:vegetarian", "diet:vegan", "diet:kosher", "religion", "emergency", "amenity", "shop", "opening_hours"}
+        "diet:vegetarian", "diet:vegan", "diet:kosher", "religion", "emergency", "amenity", "shop", "opening_hours",
+        "website", "contact:website", "contact:instagram", "wheelchair", "outdoor_seating"}
 
 
 # ---- minimal protobuf ----

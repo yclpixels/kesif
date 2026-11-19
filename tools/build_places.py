@@ -102,7 +102,15 @@ def compact(el, kind):
         p["r"] = t.get("religion", "")
     if kind == "hospital" and t.get("emergency") == "yes":
         p["e"] = 1
+    # Opening hours and website, when someone mapped them (any kind: pharmacies have hours too).
+    if t.get("opening_hours"):
+        p["h"] = t["opening_hours"][:120]
+    web = t.get("website") or t.get("contact:website")
+    if web and web.startswith("http"):
+        p["w"] = web[:200]
     if kind == "food":
+        if t.get("outdoor_seating") == "yes":
+            p["t"] = 1
         if t.get("cuisine"):
             p["c"] = t["cuisine"].replace(";", ", ")
         flags = ""

@@ -79,7 +79,7 @@ function expand(p) {
   const diet = p.d || '';
   return {
     name: p.n || p.l || '', local: p.l || p.n || '', lat: p.a, lon: p.o,
-    phone: p.p || '', street: p.s || '', religion: p.r || '', cuisine: p.c || '',
+    phone: p.p || '', street: p.s || '', religion: p.r || '', cuisine: p.c || '', hours: p.h || '', web: p.w || '', outdoor: !!p.t,
     halal: diet.includes('h'), vegetarian: diet.includes('v'), kosher: diet.includes('k'),
     emergency: !!p.e
   };
@@ -159,7 +159,7 @@ nwr${a(5000)}[amenity=police];out center tags 10;`;
         const t = el.tags || {}, la = el.lat ?? el.center?.lat, lo = el.lon ?? el.center?.lon;
         if (la == null) continue;
         const yes = (x) => /yes|only/.test(t[x] || '');
-        const p = { name: t['name:en'] || t.name || '', local: t.name || '', lat: la, lon: lo, phone: t.phone || t['contact:phone'] || '', street: t['addr:street'] ? `${t['addr:street']}${t['addr:housenumber'] ? ' ' + t['addr:housenumber'] : ''}` : '', religion: t.religion || '', cuisine: t.cuisine || '', halal: yes('diet:halal'), vegetarian: yes('diet:vegetarian') || yes('diet:vegan'), kosher: yes('diet:kosher'), emergency: t.emergency === 'yes' };
+        const p = { name: t['name:en'] || t.name || '', local: t.name || '', lat: la, lon: lo, phone: t.phone || t['contact:phone'] || '', street: t['addr:street'] ? `${t['addr:street']}${t['addr:housenumber'] ? ' ' + t['addr:housenumber'] : ''}` : '', religion: t.religion || '', cuisine: t.cuisine || '', halal: yes('diet:halal'), vegetarian: yes('diet:vegetarian') || yes('diet:vegan'), kosher: yes('diet:kosher'), emergency: t.emergency === 'yes', hours: t.opening_hours || '', web: /^https?:/.test(t.website || '') ? t.website : '', outdoor: t.outdoor_seating === 'yes' };
         const k = t.amenity === 'place_of_worship' ? 'worship' : t.amenity === 'restaurant' ? 'food' : t.shop === 'mall' ? 'mall' : t.amenity === 'hospital' ? 'hospital' : t.amenity === 'pharmacy' ? 'pharmacy' : t.amenity === 'police' ? 'police' : null;
         if (k) v[k].push(p);
       }
@@ -178,12 +178,13 @@ export function distanceM(a, b) {
 }
 
 export function getPosition(timeoutMs = 10000) {
-  return new Promise((resolve, reject) => {
+  // GPS first; indoors it often times out, so fall back to Wi-Fi/cell position instead of failing.
+  const ask = (opts) => new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) return reject(new Error('unsupported'));
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
-      (e) => reject(e),
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 }
-    );
+      (e) => reject(e), opts);
   });
+  return ask({ enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 10000 })
+    .catch((e) => (e && e.code === 1 ? Promise.reject(e) : ask({ enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 })));
 }
