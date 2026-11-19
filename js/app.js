@@ -556,7 +556,7 @@ function localSearch(q) {
   // (Shops and restaurants borrow landmark names, so only places of worship count.)
   const stops = allStops();
   for (const x of [...hits]) if (x.kind === 'place' && x.icon === 'mosque' && (fold(x.p.name).includes(f) || fold(x.p.local).includes(f))) {
-    const st = stops.find((t) => distanceM(t, x.p) < 120);
+    const st = stops.find((t) => distanceM(t, x.p) < 120 && (STOP_INFO[t.id]?.cat || t.cat || []).includes('worship'));
     if (st) push({ kind: 'stop', p: st, icon: 'collection', label: T('cat_' + ((STOP_INFO[st.id]?.cat || st.cat || ['history'])[0])) });
   }
   return hits.sort((a, b) => (b.kind === 'stop') - (a.kind === 'stop') || a.d - b.d).slice(0, 20);
@@ -602,9 +602,15 @@ function onSearchInput(q) {
     if (run === searchRun) drawResults(local, web, false);
   }, 220);
 }
+// Leave search mode: the bar slides back to the bottom.
+function endSearch(clear) {
+  if (clear) { $('mq').value = ''; $('mq-clear').hidden = true; }
+  $('mresults').hidden = true; $('mq').blur();
+  document.body.classList.remove('searching');
+}
 function openHit(i) {
   const x = lastHits[i]; if (!x) return;
-  $('mresults').hidden = true; $('mq').blur(); $('tools-sheet').hidden = true;
+  endSearch(false); $('tools-sheet').hidden = true;
   if (x.kind === 'stop') { if (x.p.city && x.p.city !== state.city) setCity(x.p.city); openStop(x.p.id); return; }
   state.tab = 'map'; state.page = null; renderNav(); renderView();
   if (map) map.easeTo({ center: [x.p.lon, x.p.lat], zoom: 17, duration: 700 });
@@ -969,7 +975,7 @@ function renderNav() {
     b.querySelector('i').hidden = !(b.dataset.tab === 'quests' && G.claimable());
   });
 }
-function renderAll() { document.documentElement.lang = state.lang; if ($('mq')) $('mq').placeholder = T('msearch_ph'); $('tools-body').innerHTML = toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
+function renderAll() { document.documentElement.lang = state.lang; if ($('mq')) { $('mq').placeholder = T('msearch_ph'); $('mq-cancel').textContent = T('close'); } $('tools-body').innerHTML = toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
 
 function openStop(id) { state.stopId = id; state.page = 'stop'; renderView(); $('view').scrollTop = 0; }
 function goTab(tab) { state.tab = tab; state.page = null; renderNav(); renderView(); $('view').scrollTop = 0; }
@@ -1040,9 +1046,11 @@ function init() {
   $('mq-ico').innerHTML = ico('search');
   $('mq').placeholder = T('msearch_ph');
   $('mq').addEventListener('input', (e) => onSearchInput(e.target.value));
-  $('mq').addEventListener('focus', (e) => { if (e.target.value) onSearchInput(e.target.value); });
-  $('mq').addEventListener('keydown', (e) => { if (e.key === 'Enter' && lastHits.length) openHit(0); if (e.key === 'Escape') { $('mresults').hidden = true; e.target.blur(); } });
-  $('mq-clear').addEventListener('click', () => { $('mq').value = ''; $('mresults').hidden = true; $('mq-clear').hidden = true; clearLines(); });
+  $('mq').addEventListener('focus', (e) => { document.body.classList.add('searching'); $('place-card').hidden = true; if (e.target.value) onSearchInput(e.target.value); });
+  $('mq-cancel').textContent = T('close');
+  $('mq-cancel').addEventListener('click', () => endSearch(true));
+  $('mq').addEventListener('keydown', (e) => { if (e.key === 'Enter' && lastHits.length) openHit(0); if (e.key === 'Escape') endSearch(false); });
+  $('mq-clear').addEventListener('click', () => { $('mq').value = ''; $('mresults').hidden = true; $('mq-clear').hidden = true; clearLines(); $('mq').focus(); });
   addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderAll(); });
   $('cam').addEventListener('change', (e) => savePhoto(e.target.files && e.target.files[0]));
   renderAll();
@@ -1050,7 +1058,7 @@ function init() {
   if (!G.game().onboarded) showWelcome();
   // Resume live location if the visitor already allowed it.
   try { navigator.permissions?.query({ name: 'geolocation' }).then((r) => { if (r.state === 'granted' && store.get('loc', false)) startWatch(); }).catch(() => {}); } catch { /* old browser */ }
-  if (map) map.on('click', () => { $('place-card').hidden = true; $('mresults').hidden = true; $('mq').blur(); });
+  if (map) map.on('click', () => { $('place-card').hidden = true; endSearch(false); });
   loadLive();
   if ('serviceWorker' in navigator) {
     const hadController = !!navigator.serviceWorker.controller;

@@ -88,7 +88,7 @@ button { font: inherit; color: inherit; }
 .chip-player svg { width: 40px; height: 43px; border-radius: 50%; background: radial-gradient(circle, #4c3aa8, #261d5c); }
 .chip-player b { display: block; font-family: var(--display); font-weight: 600; line-height: 1.1; }
 .chip-player small { color: var(--muted); font-weight: 700; }
-.map-bottom { position: absolute; z-index: 500; left: 0; right: 0; bottom: 0; padding: 0 max(14px, env(safe-area-inset-right, 0px)) 14px max(14px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+.map-bottom { position: absolute; z-index: 500; left: 0; right: 0; bottom: 0; padding: 0 max(14px, env(safe-area-inset-right, 0px)) 72px max(14px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
 .map-bottom > * { pointer-events: auto; }
 .locate { background: #fff; color: #1e1647; }
 .map-bottom .map-row .round { width: 52px; height: 52px; }
@@ -250,13 +250,18 @@ h2.sec { margin-top: 4px; }
 .note { font-size: .82rem; color: var(--gold); background: rgba(251, 191, 36, .1); border-radius: 12px; padding: 10px 12px; }
 
 /* map search bar, results, route chip */
-.msearch { position: absolute; z-index: 510; top: calc(env(safe-area-inset-top, 0px) + 112px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px; border-radius: 14px; background: rgba(255, 255, 255, .96); backdrop-filter: blur(14px); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.msearch { position: absolute; z-index: 510; bottom: 14px; left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 12px; border-radius: 16px; background: rgba(255, 255, 255, .96); backdrop-filter: blur(14px); box-shadow: 0 6px 20px rgba(0, 0, 0, .22); transition: bottom .2s ease, top .2s ease; }
+/* While typing, the bar moves to the top (like Apple Maps) so the keyboard never covers it. */
+.searching .msearch { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 530; }
+.searching .map-bottom, .searching .map-top, .searching .route-chip { visibility: hidden; }
+.mq-cancel { display: none; border: 0; background: none; color: #7c3aed; font: inherit; font-weight: 700; cursor: pointer; padding: 0 2px; }
+.searching .mq-cancel { display: block; }
 .mq-ico .ico { color: #8e8e93; width: 18px; height: 18px; }
 .msearch input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 16px; color: #1c1c1e; }
 .msearch input::placeholder { color: #8e8e93; }
 .msearch input::-webkit-search-cancel-button { display: none; }
 .mq-clear { border: 0; background: #e5e5ea; color: #3a3a3c; width: 24px; height: 24px; border-radius: 50%; font-size: .75rem; cursor: pointer; }
-.mresults { position: absolute; z-index: 515; top: calc(env(safe-area-inset-top, 0px) + 164px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); max-height: 50%; overflow-y: auto; margin: 0; padding: 6px; list-style: none; border-radius: 16px; background: rgba(255, 255, 255, .98); box-shadow: 0 12px 34px rgba(0, 0, 0, .25); }
+.mresults { position: absolute; z-index: 530; top: calc(env(safe-area-inset-top, 0px) + 70px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); max-height: 50%; overflow-y: auto; margin: 0; padding: 6px; list-style: none; border-radius: 16px; background: rgba(255, 255, 255, .98); box-shadow: 0 12px 34px rgba(0, 0, 0, .25); }
 .mresults button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border: 0; border-radius: 12px; background: none; color: #1c1c1e; text-align: left; cursor: pointer; }
 .mresults button:hover, .mresults button:focus-visible { background: #f2f2f7; }
 .mresults .ico { color: #7c3aed; width: 20px; height: 20px; }
@@ -265,7 +270,7 @@ h2.sec { margin-top: 4px; }
 .mresults small { color: #6e6e73; text-transform: capitalize; }
 .mresults em { font-style: normal; color: #6e6e73; font-weight: 700; font-size: .8rem; white-space: nowrap; }
 .mresults .rhead { padding: 8px 10px 4px; font-size: .72rem; font-weight: 800; color: #8e8e93; text-transform: uppercase; letter-spacing: .06em; }
-.route-chip { position: absolute; z-index: 512; top: calc(env(safe-area-inset-top, 0px) + 166px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, .97); color: #1c1c1e; box-shadow: 0 8px 26px rgba(0, 0, 0, .22); }
+.route-chip { position: absolute; z-index: 512; top: calc(env(safe-area-inset-top, 0px) + 112px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, .97); color: #1c1c1e; box-shadow: 0 8px 26px rgba(0, 0, 0, .22); }
 .route-chip > .ico { color: #7c3aed; width: 24px; height: 24px; }
 .route-chip span { flex: 1; min-width: 0; }
 .route-chip b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
