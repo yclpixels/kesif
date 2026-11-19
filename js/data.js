@@ -191,8 +191,10 @@ export const CITIES = {
         ["Ulu Cami → Cumalıkızık", 12]
       ]
     },
-    card: '',
-    transit: [],
+    card: "BursaKart",
+    transit: [
+      ["transit_bursa", "≈ 50 TL"]
+    ],
     stamps: [
       { id: 'bu_ulu', name: "Grand Mosque of Bursa", lat: 40.1835, lon: 29.0618 },
       { id: 'bu_koza', name: "Koza Han", lat: 40.1844, lon: 29.0633 },
@@ -218,8 +220,11 @@ export const CITIES = {
         ["Adalar → Odunpazarı", 1.5]
       ]
     },
-    card: '',
-    transit: [],
+    card: "Eskart",
+    transit: [
+      ["transit_esk", "40 TL"],
+      ["transit_esk_qr", "56 TL"]
+    ],
     stamps: [
       { id: 'es_odun', name: "Odunpazarı Houses", lat: 39.7651, lon: 30.5242 },
       { id: 'es_alaeddin', name: "Alaeddin Mosque", lat: 39.7667, lon: 30.524 },
@@ -244,8 +249,10 @@ export const CITIES = {
         ["Meydan → Atatürk Pavilion", 6]
       ]
     },
-    card: '',
-    transit: [],
+    card: "",
+    transit: [
+      ["transit_trb", "≈ 35 TL"]
+    ],
     stamps: [
       { id: 'tr_kale', name: "Güzelhisar Castle", lat: 41.0078, lon: 39.7347 },
       { id: 'tr_uzun', name: "Uzun Sokak", lat: 41.0051, lon: 39.7285 },

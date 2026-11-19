@@ -66,6 +66,13 @@ python3 tools/extract_shp.py data/.raw/turkey-latest-free.shp.zip ankara izmir a
 python3 tools/build_places.py ankara
 ```
 
+```bash
+# Telefon, adres, mutfak ve beslenme etiketleri: tam Türkiye dosyası (654 MB, ~2 dakikada okunur)
+curl -L -o data/.raw/turkey-latest.osm.pbf https://download.geofabrik.de/europe/turkey-latest.osm.pbf
+python3 tools/extract_pbf.py data/.raw/turkey-latest.osm.pbf
+python3 tools/build_places.py --cached
+```
+
 Overpass sorguları dört parçaya bölünür ve her parça `data/.raw/tiles/` altında saklanır; kesilirse kaldığı parçadan devam eder.
 
 ```bash
@@ -116,6 +123,7 @@ data/places-*.json      OpenStreetMap'ten hazır mekân verisi
 tools/build_places.py   Mekân verisini Overpass'tan indirir, uygulama dosyalarını üretir
 tools/extract_osm.py    Mekânları OpenStreetMap şehir dosyasından çıkarır
 tools/extract_shp.py    Mekânları Geofabrik Türkiye shapefile paketinden çıkarır
+tools/extract_pbf.py    Tam Türkiye .pbf dosyasından telefon, adres, mutfak ekler (ek paket gerekmez)
 sw.js                   Çevrimdışı çalışma
 manifest.webmanifest    Telefona kurulum
 ```

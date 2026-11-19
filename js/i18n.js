@@ -375,3 +375,18 @@ Object.assign(S.en, { offline_title: 'Offline map', offline_note: 'Places you ha
 Object.assign(S.tr, { offline_title: 'Çevrimdışı harita', offline_note: 'Gördüğün yerler telefonda kalır. Çekim gitmeden önce bütün şehri kaydet.', offline_btn: '{city} haritasını çevrimdışı kaydet', offline_progress: 'Kaydediliyor… {n} / {total}', offline_done: '{city} çevrimdışı kullanım için kaydedildi ({n} dosya).', offline_fail: 'Harita kaydedilemedi. Bağlantını kontrol edip tekrar dene.' });
 Object.assign(S.de, { offline_title: 'Offline-Karte', offline_note: 'Gesehene Orte bleiben auf dem Handy. Speichere eine ganze Stadt, bevor du kein Netz hast.', offline_btn: 'Karte von {city} offline speichern', offline_progress: 'Speichern… {n} / {total}', offline_done: '{city} für offline gespeichert ({n} Dateien).', offline_fail: 'Karte konnte nicht gespeichert werden. Prüfe die Verbindung und versuche es erneut.' });
 Object.assign(S.ru, { offline_title: 'Офлайн-карта', offline_note: 'Просмотренные места остаются на телефоне. Сохраните весь город, пока есть связь.', offline_btn: 'Сохранить карту: {city}', offline_progress: 'Сохранение… {n} / {total}', offline_done: '{city} сохранён для офлайн ({n} файлов).', offline_fail: 'Не удалось сохранить карту. Проверьте подключение и повторите.' });
+
+Object.assign(S.en, { transit_bursa: 'BursaRay, bus and tram (full fare)', transit_esk: 'Tram and bus (full fare)', transit_esk_qr: 'Single QR ticket', transit_trb: 'City bus in Ortahisar (full fare)' });
+Object.assign(S.tr, { transit_bursa: 'BursaRay, otobüs ve tramvay (tam)', transit_esk: 'Tramvay ve otobüs (tam)', transit_esk_qr: 'Tek kullanımlık QR bilet', transit_trb: 'Ortahisar içi belediye otobüsü (tam)' });
+Object.assign(S.de, { transit_bursa: 'BursaRay, Bus und Tram (voller Preis)', transit_esk: 'Tram und Bus (voller Preis)', transit_esk_qr: 'Einzel-QR-Ticket', transit_trb: 'Stadtbus in Ortahisar (voller Preis)' });
+Object.assign(S.ru, { transit_bursa: 'BursaRay, автобус и трамвай (полный)', transit_esk: 'Трамвай и автобус (полный)', transit_esk_qr: 'Разовый QR-билет', transit_trb: 'Городской автобус в Ортахисаре (полный)' });
+
+Object.assign(S.en, { plan_late: 'This plan runs into the evening. Most museums close between 17:00 and 19:00, and mosques close to visitors at prayer times. Check opening hours or start tomorrow morning.' });
+Object.assign(S.tr, { plan_late: 'Bu plan akşama uzanıyor. Müzelerin çoğu 17:00–19:00 arasında kapanır, camiler namaz vakitlerinde ziyarete kapalıdır. Açılış saatlerine bak ya da yarın sabah başla.' });
+Object.assign(S.de, { plan_late: 'Dieser Plan reicht in den Abend. Die meisten Museen schließen zwischen 17 und 19 Uhr, Moscheen sind zu Gebetszeiten für Besucher geschlossen. Prüfe die Öffnungszeiten oder starte morgen früh.' });
+Object.assign(S.ru, { plan_late: 'План затягивается до вечера. Большинство музеев закрывается с 17:00 до 19:00, мечети закрыты для туристов во время намаза. Проверьте часы работы или начните завтра утром.' });
+
+Object.assign(S.en, { er_24h: 'emergency room' });
+Object.assign(S.tr, { er_24h: 'acil servis' });
+Object.assign(S.de, { er_24h: 'Notaufnahme' });
+Object.assign(S.ru, { er_24h: 'приёмный покой' });

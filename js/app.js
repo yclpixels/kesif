@@ -634,9 +634,17 @@ function renderPlan() {
       <button type="button" class="tl-stop" data-stop="${x.s.id}"><b class="tl-n">${i + 1}</b><span><b>${esc(x.s.name)}</b><small>${fmt(x.startAt)} · ${esc(T('plan_visit', { n: x.stay }))}</small></span>${G.hasStamp(x.s.city || state.city, x.s.id) ? ico('check') : `<em>+${G.XP_STAMP} XP</em>`}</button>
     </li>`).join('')}</ol>
     <p class="muted center">${esc(T('plan_total', { n: plan.length, km: (walked / 1000).toFixed(1), end: fmt(used) }))}</p>
+    ${lateAt(now, used) ? `<p class="note">${esc(T('plan_late'))}</p>` : ''}
     <button type="button" class="btn big" data-plan-map>${ico('map')}${esc(T('plan_show'))}</button>
     <a class="btn ghost big" href="${planGmaps(plan)}" target="_blank" rel="noopener">${esc(T('plan_gmaps'))} →</a>`
     : `<p class="muted center">${esc(T('plan_empty'))}</p>`}`;
+}
+// Does the plan run past 18:00 Istanbul time, when most museums are closing?
+function lateAt(now, minutes) {
+  const end = new Date(now.getTime() + minutes * 60000);
+  const h = +end.toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' }).slice(0, 2);
+  const startH = +now.toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' }).slice(0, 2);
+  return h >= 18 || h < 7 || startH >= 17 || end.getDate() !== now.getDate();
 }
 function planGmaps(plan) {
   const h = here(), name = (s) => `${s.name}, ${CITIES[s.city]?.name.en || cityName()}`;
@@ -737,12 +745,12 @@ function renderCal() {
 
 function renderSos() {
   const pl = state.places;
-  const er = pl?.hospital ? pl.hospital.filter((p) => p.emergency) : [];
-  const near = pl ? [...nearest(er.length ? er : pl.hospital, 2).map((p) => ({ ...p, kind: 'hospital' })), ...nearest(pl.police, 1).map((p) => ({ ...p, kind: 'police' })), ...nearest(pl.pharmacy, 2).map((p) => ({ ...p, kind: 'pharmacy' }))] : [];
+  // Nearest hospitals first; the emergency tag is often missing in OpenStreetMap, so it only adds a label.
+  const near = pl ? [...nearest(pl.hospital, 2).map((p) => ({ ...p, kind: 'hospital' })), ...nearest(pl.police, 1).map((p) => ({ ...p, kind: 'police' })), ...nearest(pl.pharmacy, 2).map((p) => ({ ...p, kind: 'pharmacy' }))] : [];
   const sosAvail = !!(pl && (pl.hospital || pl.police || pl.pharmacy));
   return `${backHead(T('t_sos'))}
   <div class="sos"><small>${esc(T('emergency'))}</small><b class="sel">112</b></div>
-  <section class="panel"><h2>${esc(T('nearest'))}</h2>${rowsHtml(near, (p) => `<small>${esc(T(p.kind))}${p.phone ? ` · <span class="sel">${esc(p.phone)}</span>` : ''}</small>`, sosAvail)}${sosAvail ? '' : gmLink(T('gm_hospital')) + gmLink(T('gm_pharmacy'))}<p class="muted">${esc(T('duty_pharmacy'))}</p></section>
+  <section class="panel"><h2>${esc(T('nearest'))}</h2>${rowsHtml(near, (p) => { const bits = [(p.name || p.local) ? T(p.kind) : '', p.emergency ? T('er_24h') : '', p.phone ? `<span class="sel">${esc(p.phone)}</span>` : ''].filter(Boolean); return bits.length ? `<small>${bits.map((b) => (b.startsWith('<span') ? b : esc(b))).join(' · ')}</small>` : ''; }, sosAvail)}${sosAvail ? '' : gmLink(T('gm_hospital')) + gmLink(T('gm_pharmacy'))}<p class="muted">${esc(T('duty_pharmacy'))}</p></section>
   <section class="panel"><h2>${esc(T('embassy'))}</h2><p class="muted">${esc(T(city().embassy))}</p></section>
   <section class="panel"><h2>${esc(T('phrases'))}</h2><ul class="phrases">${Object.keys(PHRASES_TR).map((k) => `<li><b lang="tr">${esc(PHRASES_TR[k])}</b>${state.lang !== 'tr' ? `<small>${esc(T(k))}</small>` : ''}</li>`).join('')}</ul></section>`;
 }
