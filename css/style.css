@@ -249,6 +249,30 @@ h2.sec { margin-top: 4px; }
 .wiki { color: #5b34d6; font-weight: 800; text-decoration: none; }
 .note { font-size: .82rem; color: var(--gold); background: rgba(251, 191, 36, .1); border-radius: 12px; padding: 10px 12px; }
 
+/* map search bar, results, route chip */
+.msearch { position: absolute; z-index: 510; top: calc(env(safe-area-inset-top, 0px) + 112px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px; border-radius: 14px; background: rgba(255, 255, 255, .96); backdrop-filter: blur(14px); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.mq-ico .ico { color: #8e8e93; width: 18px; height: 18px; }
+.msearch input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 16px; color: #1c1c1e; }
+.msearch input::placeholder { color: #8e8e93; }
+.msearch input::-webkit-search-cancel-button { display: none; }
+.mq-clear { border: 0; background: #e5e5ea; color: #3a3a3c; width: 24px; height: 24px; border-radius: 50%; font-size: .75rem; cursor: pointer; }
+.mresults { position: absolute; z-index: 515; top: calc(env(safe-area-inset-top, 0px) + 164px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); max-height: 50%; overflow-y: auto; margin: 0; padding: 6px; list-style: none; border-radius: 16px; background: rgba(255, 255, 255, .98); box-shadow: 0 12px 34px rgba(0, 0, 0, .25); }
+.mresults button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border: 0; border-radius: 12px; background: none; color: #1c1c1e; text-align: left; cursor: pointer; }
+.mresults button:hover, .mresults button:focus-visible { background: #f2f2f7; }
+.mresults .ico { color: #7c3aed; width: 20px; height: 20px; }
+.mresults span { flex: 1; min-width: 0; }
+.mresults b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mresults small { color: #6e6e73; text-transform: capitalize; }
+.mresults em { font-style: normal; color: #6e6e73; font-weight: 700; font-size: .8rem; white-space: nowrap; }
+.mresults .rhead { padding: 8px 10px 4px; font-size: .72rem; font-weight: 800; color: #8e8e93; text-transform: uppercase; letter-spacing: .06em; }
+.route-chip { position: absolute; z-index: 512; top: calc(env(safe-area-inset-top, 0px) + 166px); left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, .97); color: #1c1c1e; box-shadow: 0 8px 26px rgba(0, 0, 0, .22); }
+.route-chip > .ico { color: #7c3aed; width: 24px; height: 24px; }
+.route-chip span { flex: 1; min-width: 0; }
+.route-chip b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-chip small { color: #6e6e73; font-weight: 600; }
+.route-chip .btn.ghost { background: #f2f2f7; color: #5b21b6; box-shadow: none; }
+.sheet .gm { color: #5b34d6; background: #f2effb; justify-content: center; }
+
 /* day plan */
 .tool.wide { width: 100%; margin-bottom: 10px; background: linear-gradient(90deg, #6d28d9, #4c1d95); }
 .tool.wide small { display: block; color: var(--glow); font-weight: 600; font-size: .78rem; }

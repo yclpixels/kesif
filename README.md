@@ -99,6 +99,7 @@ Kaynaklar haber siteleri. Yayına çıkmadan önce İBB/UKOME ve EGO'nun kendi s
 - **Fotoğraflar** Wikimedia Commons'tan elle seçildi (`js/photos.js`). Fotoğrafın üstündeki fotoğrafçı ve lisans satırını kaldırma, lisans bunu istiyor.
 - **Karakter çizimleri** geçici SVG (her karakterin kendi parçası var: lale, çini, simit, gaga, çizgiler). Tasarımdaki gibi 3D karakterler için illüstratör gerekli.
 - **Harita** MapLibre + OpenFreeMap (ücretsiz, anahtarsız, 3B binalı "liberty" stili). Çok yoğun kullanımda kendi karo sunucusu ya da ücretli bir servis düşünülmeli.
+- **Arama ve rota**: haritadaki arama çubuğu önce uygulamanın kendi verisinde arar ("eczane", "cami", "döner", yer adları), az sonuç çıkarsa OpenStreetMap'in Photon aramasına sorar. Rotalar OpenStreetMap Almanya'nın ücretsiz OSRM sunucusundan (`routing.openstreetmap.de`) yürüyüş yoluyla, 4 km'den uzaksa araç yoluyla çizilir; sunucu yanıt vermezse düz çizgi ve "yaklaşık" notu gösterilir. Yoğun kullanımda kendi OSRM/Photon sunucusu gerekir.
 - **Puanlar** şimdilik sadece kişinin kendi puanı. Herkesin ortalaması için sunucu gerekir, uydurma puan gösterilmiyor.
 - **Restoran rezervasyonu** yok. Restoranlarla anlaşma yapılınca eklenecek. Şimdilik telefon numarası (varsa) ve harita bağlantısı gösteriliyor.
 - **Nöbetçi eczane** listesi yok, sadece en yakın eczaneler. Resmi nöbetçi verisi için ayrı bir kaynak gerekiyor.

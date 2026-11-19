@@ -164,11 +164,12 @@ function openPlace(p, kindLabel) {
       <button type="button" class="round sm" data-pc-close aria-label="${esc(T('close'))}">✕</button></div>
     <div class="pc-meta"><span>${ico('walk')}${fmtDist(d)} · ${esc(T('min', { n: walk }))}</span>${p.street ? `<span>${ico('pin')}${esc(p.street)}</span>` : ''}${tel ? `<span class="sel">${ico('bell')}${esc(tel)}</span>` : ''}</div>
     <div class="pc-actions">
-      <a class="btn" href="${dir}" target="_blank" rel="noopener">${ico('walk')}${esc(T('directions'))}</a>
+      <button type="button" class="btn" data-route-card>${ico('walk')}${esc(T('route_draw'))}</button>
       ${tel ? `<a class="btn ghost" href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(T('call'))}</a>` : ''}
       <a class="btn ghost" href="${mapUrl(p)}" target="_blank" rel="noopener">${esc(T('open_maps'))}</a>
     </div>`;
   $('place-card').hidden = false;
+  state.cardPlace = p;
 }
 
 /* ---------- toast ---------- */
@@ -338,7 +339,8 @@ function renderStop() {
       ${A.photosFor(s.id).length ? `<div class="strip">${A.photosFor(s.id).map((p) => `<button type="button" data-view="${p.id}"><img src="${A.photoUrl(p.id)}" alt="${esc(s.name)}"></button>`).join('')}</div>`
         : `<p class="muted">${esc(T('photo_hint', { n: G.XP_PHOTO }))}</p>`}
     </div>
-    <a class="btn ghost big" href="${dirUrl(s)}" target="_blank" rel="noopener">${esc(T('start'))} →</a>
+    <button type="button" class="btn ghost big" data-route-stop="${s.id}">${ico('walk')}${esc(T('route_draw'))}</button>
+    <a class="gm" href="${dirUrl(s)}" target="_blank" rel="noopener">${ico('map')}${esc(T('start'))} · Google →</a>
   </section>`;
 }
 function bindStop() {
@@ -516,35 +518,148 @@ function bindProfile() {
   $('lang').addEventListener('change', (e) => { state.lang = e.target.value; try { localStorage.setItem('damga:lang', state.lang); } catch {} renderAll(); });
 }
 
-function searchBox() {
-  return `<div class="search"><span>${ico('search')}</span><input id="q" type="search" placeholder="${esc(T('search_ph'))}" aria-label="${esc(T('search_ph'))}" autocomplete="off"></div><ul class="results" id="results"></ul>`;
+/* ---------- search: the bar on the map ---------- */
+const fold = (x) => String(x || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i');
+// Words that mean a whole kind of place, in four languages (already folded: no accents).
+const CAT_WORDS = [
+  ['pharmacy', 'hospital', /^(eczane|pharmac|apothek|аптек)/, 'pharmacy'],
+  ['hospital', 'hospital', /^(hastane|acil|hospital|krankenhaus|klinik|больниц)/, 'hospital'],
+  ['police', 'sos', /^(polis|karakol|police|polizei|полиц)/, 'police'],
+  ['worship', 'mosque', /^(cami|mescit|kilise|sinagog|ibadet|mosque|church|synagog|moschee|kirche|мечет|церк)/, 'worship'],
+  ['mall', 'market', /^(avm|alisveris|mall|shopping|einkauf)/, 'malls'],
+  ['food', 'food', /^(restoran|lokanta|yemek|restaurant|food|essen|ресторан|еда)/, 'restaurant']
+];
+// Food words look inside cuisine and names: "döner", "balık", "vegan"...
+const FOOD_WORDS = [[/^(kebap|kebab)/, ['kebab', 'kebap']], [/^doner/, ['doner', 'kebab']], [/^(balik|fish|seafood)/, ['fish', 'seafood', 'balik']], [/^pide/, ['pide']], [/^kofte/, ['kofte', 'meatball']],
+  [/^pizza/, ['pizza']], [/^burger/, ['burger']], [/^(kahvalti|breakfast)/, ['breakfast', 'kahvalti']], [/^(meyhane)/, ['meyhane']], [/^(lahmacun)/, ['lahmacun']], [/^(iskender)/, ['iskender']],
+  [/^(corba|soup)/, ['soup', 'corba']], [/^(tatli|dessert|baklava)/, ['dessert', 'baklava', 'tatli']], [/^(kafe|cafe|kahve|coffee)/, ['coffee', 'cafe', 'kahve']]];
+const PLACE_KINDS = [['food', 'food', 'restaurant'], ['worship', 'mosque', 'worship'], ['mall', 'market', 'malls'], ['hospital', 'hospital', 'hospital'], ['pharmacy', 'hospital', 'pharmacy'], ['police', 'sos', 'police']];
+
+function localSearch(q) {
+  const f = fold(q).trim(), h = here(), pl = state.places || {};
+  if (f.length < 2) return [];
+  const hits = [], seen = new Set();
+  const push = (x) => { const k = (x.p.id || '') + x.p.lat + ',' + x.p.lon; if (!seen.has(k)) { seen.add(k); hits.push({ ...x, d: distanceM(h, x.p) }); } };
+  // 1. A whole category ("eczane", "mosque")
+  for (const [kind, icon, re, label] of CAT_WORDS) if (re.test(f)) for (const p of nearest(pl[kind], 15)) push({ kind: 'place', p, icon, label: T(label) });
+  // 2. Food types and diets
+  const diet = /^(vegan|vejetaryen|vegetarian)/.test(f) ? 'vegetarian' : /^(helal|halal)/.test(f) ? 'halal' : /^(koser|kosher)/.test(f) ? 'kosher' : '';
+  const fw = FOOD_WORDS.find(([re]) => re.test(f));
+  if (diet || fw) for (const p of nearest(pl.food, 400)) {
+    const text = fold(p.cuisine + ' ' + p.name + ' ' + p.local);
+    if ((diet && p[diet]) || (fw && fw[1].some((w) => text.includes(w)))) push({ kind: 'place', p, icon: 'food', label: [T('restaurant'), cuisineText(p.cuisine)].filter(Boolean).join(' · ') });
+  }
+  // 3. Names: passport stops first, then every kind of place
+  for (const s of allStops()) if (fold(s.name).includes(f)) push({ kind: 'stop', p: s, icon: 'collection', label: T('cat_' + ((STOP_INFO[s.id]?.cat || s.cat || ['history'])[0])) });
+  for (const [kind, icon, label] of PLACE_KINDS) for (const p of pl[kind] || []) if (fold(p.name).includes(f) || fold(p.local).includes(f)) push({ kind: 'place', p, icon, label: T(label) });
+  // Stop names are in English; a local name ("Ayasofya") that matches a place of worship right at a stop finds the stop too.
+  // (Shops and restaurants borrow landmark names, so only places of worship count.)
+  const stops = allStops();
+  for (const x of [...hits]) if (x.kind === 'place' && x.icon === 'mosque' && (fold(x.p.name).includes(f) || fold(x.p.local).includes(f))) {
+    const st = stops.find((t) => distanceM(t, x.p) < 120);
+    if (st) push({ kind: 'stop', p: st, icon: 'collection', label: T('cat_' + ((STOP_INFO[st.id]?.cat || st.cat || ['history'])[0])) });
+  }
+  return hits.sort((a, b) => (b.kind === 'stop') - (a.kind === 'stop') || a.d - b.d).slice(0, 20);
 }
-// Search passport stops and every downloaded place in the current city by name (Turkish-aware, accent-insensitive).
-const fold = (x) => String(x || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i');
-function runSearch(q) {
-  const out = $('results'); if (!out) return;
-  const f = fold(q).trim();
-  if (f.length < 2) { out.innerHTML = ''; return; }
-  const h = here(), pl = state.places || {};
-  const hits = [];
-  for (const s of allStops()) if (fold(s.name).includes(f)) hits.push({ kind: 'stop', p: s, label: T('cat_' + ((STOP_INFO[s.id]?.cat || s.cat || ['history'])[0])), icon: 'collection' });
-  const add = (list, kind, icon, label) => { for (const p of list || []) if (fold(p.name).includes(f) || fold(p.local).includes(f)) hits.push({ kind, p, label, icon }); };
-  add(pl.food, 'place', 'food', T('restaurant'));
-  add(pl.worship, 'place', 'mosque', T('worship'));
-  add(pl.mall, 'place', 'market', T('malls'));
-  add(pl.hospital, 'place', 'hospital', T('hospital'));
-  const top = hits.map((x) => ({ ...x, d: distanceM(h, x.p) })).sort((a, b) => (a.kind === 'stop') - (b.kind === 'stop') ? (b.kind === 'stop') - (a.kind === 'stop') : a.d - b.d).slice(0, 12);
-  window.__hits = top;
-  out.innerHTML = top.length ? top.map((x, i) => `<li><button type="button" data-hit="${i}">${ico(x.icon)}<span><b>${esc(x.p.name || x.p.local)}</b><small>${esc(x.label)}</small></span><em>${fmtDist(x.d)}</em></button></li>`).join('')
-    : `<li class="muted">${esc(T('none'))}</li>`;
+
+// Anything else (a café chain, a hotel, an ATM): OpenStreetMap search around the visitor.
+const WEB_ICON = { restaurant: 'food', cafe: 'food', fast_food: 'food', bar: 'food', pub: 'food', place_of_worship: 'mosque', hospital: 'hospital', clinic: 'hospital', pharmacy: 'hospital', police: 'sos', museum: 'museum', mall: 'market', supermarket: 'market', marketplace: 'market', park: 'park', viewpoint: 'view', attraction: 'history', monument: 'history', castle: 'history' };
+async function webSearch(q) {
+  const h = here(), r = 0.25;
+  const u = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=${h.lat}&lon=${h.lon}&limit=12&bbox=${h.lon - r},${h.lat - r},${h.lon + r},${h.lat + r}`;
+  try {
+    const d = await (await fetch(u)).json();
+    return (d.features || []).map((f) => {
+      const pr = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+      const p = { name: pr.name || pr.street || '', local: pr.name || '', lat, lon, street: [pr.street, pr.housenumber].filter(Boolean).join(' '), phone: '', cuisine: '' };
+      const label = [String(pr.osm_value || '').replace(/_/g, ' '), pr.district || pr.city].filter(Boolean).join(' · ');
+      return { kind: 'web', p, icon: WEB_ICON[pr.osm_value] || 'pin', label, d: distanceM(h, p) };
+    }).filter((x) => x.p.name).sort((a, b) => a.d - b.d);
+  } catch { return []; }
+}
+
+let searchTimer, searchRun = 0, lastHits = [];
+function drawResults(local, web, loadingWeb) {
+  lastHits = [...local, ...(web || [])];
+  const row = (x, i) => `<li><button type="button" data-hit="${i}">${ico(x.icon)}<span><b>${esc(x.p.name || x.p.local || x.label)}</b><small>${esc(x.label)}</small></span><em>${fmtDist(x.d)}</em></button></li>`;
+  const el = $('mresults');
+  el.innerHTML = local.map(row).join('')
+    + (web && web.length ? `<li class="rhead">${esc(T('web_results'))}</li>` + web.map((x, i) => row(x, local.length + i)).join('') : '')
+    + (loadingWeb ? `<li class="rhead">${esc(T('loading'))}</li>` : '')
+    + (!local.length && !(web && web.length) && !loadingWeb ? `<li class="rhead">${esc(T('none'))}</li>` : '');
+  el.hidden = false;
+}
+function onSearchInput(q) {
+  clearTimeout(searchTimer);
+  $('mq-clear').hidden = !q;
+  if (fold(q).trim().length < 2) { $('mresults').hidden = true; return; }
+  searchTimer = setTimeout(async () => {
+    const run = ++searchRun, local = localSearch(q);
+    const wantWeb = local.length < 6 && fold(q).trim().length >= 3;
+    drawResults(local, null, wantWeb);
+    if (!wantWeb) return;
+    const web = await webSearch(q);
+    if (run === searchRun) drawResults(local, web, false);
+  }, 220);
 }
 function openHit(i) {
-  const x = (window.__hits || [])[i]; if (!x) return;
-  $('tools-sheet').hidden = true;
-  if (x.kind === 'stop') { if (x.p.city !== state.city) setCity(x.p.city); openStop(x.p.id); return; }
+  const x = lastHits[i]; if (!x) return;
+  $('mresults').hidden = true; $('mq').blur(); $('tools-sheet').hidden = true;
+  if (x.kind === 'stop') { if (x.p.city && x.p.city !== state.city) setCity(x.p.city); openStop(x.p.id); return; }
   state.tab = 'map'; state.page = null; renderNav(); renderView();
   if (map) map.easeTo({ center: [x.p.lon, x.p.lat], zoom: 17, duration: 700 });
   openPlace(x.p, x.label);
+}
+
+/* ---------- routes drawn in the app ---------- */
+// Walking (or driving, for far places) along real streets, from the free OSRM servers of OpenStreetMap Germany.
+const ROUTER = 'https://routing.openstreetmap.de';
+async function fetchRoute(points, car) {
+  const prof = car ? 'routed-car/route/v1/driving' : 'routed-foot/route/v1/foot';
+  const path = points.map((p) => `${p.lon.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
+  try {
+    const d = await (await fetch(`${ROUTER}/${prof}/${path}?overview=full&geometries=geojson`)).json();
+    const r = d.routes && d.routes[0];
+    if (r) return { coords: r.geometry.coordinates, dist: r.distance, dur: r.duration, real: true };
+  } catch { /* fall back to a straight line */ }
+  let dist = 0; for (let i = 1; i < points.length; i++) dist += distanceM(points[i - 1], points[i]) * 1.3;
+  return { coords: points.map((p) => [p.lon, p.lat]), dist, dur: dist / (car ? 5 : 1.3), real: false };
+}
+function drawLine(id, coords, { dashed = false } = {}) {
+  const draw = () => {
+    const data = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }, { type: 'Feature', geometry: { type: 'Point', coordinates: coords[coords.length - 1] } }] };
+    if (map.getSource(id)) map.getSource(id).setData(data);
+    else {
+      map.addSource(id, { type: 'geojson', data });
+      map.addLayer({ id: id + '-case', type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9 } });
+      map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7c3aed', 'line-width': 5, ...(dashed ? { 'line-dasharray': [1.6, 1.1] } : {}) } });
+      // the end of the line: a white-ringed violet dot
+      map.addLayer({ id: id + '-end', type: 'circle', source: id, filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 8, 'circle-color': '#7c3aed', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } });
+    }
+    const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 170, bottom: 240, left: 50, right: 50 }, pitch: 45, duration: 900 });
+  };
+  setTimeout(() => { map.resize(); if (map.isStyleLoaded()) draw(); else map.once('idle', draw); }, 60);
+}
+function clearLines() {
+  if (!map) return;
+  for (const id of ['route', 'plan']) for (const l of [id + '-end', id, id + '-case']) if (map.getLayer(l)) map.removeLayer(l);
+  for (const id of ['route', 'plan']) if (map.getSource(id)) map.removeSource(id);
+  $('route-chip').hidden = true;
+}
+async function routeTo(dest) {
+  if (!map) return;
+  clearLines();
+  $('place-card').hidden = true;
+  state.tab = 'map'; state.page = null; renderNav(); renderView();
+  const h = here(), car = distanceM(h, dest) > 4000;
+  $('route-chip').innerHTML = `<span>${esc(T('loading'))}</span>`; $('route-chip').hidden = false;
+  const r = await fetchRoute([h, dest], car);
+  drawLine('route', r.coords);
+  const km = r.dist >= 1000 ? `${(r.dist / 1000).toFixed(1)} km` : `${Math.round(r.dist / 10) * 10} m`, min = Math.max(1, Math.round(r.dur / 60));
+  const g = `https://www.google.com/maps/dir/?api=1&origin=${h.lat},${h.lon}&destination=${dest.lat},${dest.lon}&travelmode=${car ? 'driving' : 'walking'}`;
+  $('route-chip').innerHTML = `${ico(car ? 'car' : 'walk')}<span><b>${esc(dest.name || dest.local || '')}</b><small>${esc(T(car ? 'route_drive' : 'route_walk', { km, n: min }))}${r.real ? '' : ' · ' + esc(T('route_straight'))}</small></span>
+    <a class="btn sm ghost" href="${g}" target="_blank" rel="noopener">Google</a><button type="button" class="round sm" data-route-clear aria-label="${esc(T('close'))}">✕</button>`;
 }
 
 // Install: Android/Chrome gives us a prompt; iPhone needs the Share menu.
@@ -652,24 +767,13 @@ function planGmaps(plan) {
   const way = plan.slice(0, -1).slice(0, 8).map((x) => name(x.s)).join('|');
   return `https://www.google.com/maps/dir/?api=1&origin=${h.lat},${h.lon}&destination=${encodeURIComponent(name(last.s))}${way ? `&waypoints=${encodeURIComponent(way)}` : ''}&travelmode=walking`;
 }
-// Draw the planned route as a violet line on the map.
-function showPlanOnMap() {
+// Draw the planned route on real walking streets (straight lines if the route service is down).
+async function showPlanOnMap() {
   const plan = state.lastPlan || []; if (!map || !plan.length) return;
-  const h = here(), coords = [[h.lon, h.lat], ...plan.map((x) => [x.s.lon, x.s.lat])];
-  const draw = () => {
-    const data = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
-    if (map.getSource('plan')) map.getSource('plan').setData(data);
-    else {
-      map.addSource('plan', { type: 'geojson', data });
-      map.addLayer({ id: 'plan-glow', type: 'line', source: 'plan', paint: { 'line-color': '#a78bfa', 'line-width': 10, 'line-opacity': 0.35, 'line-blur': 2 } });
-      map.addLayer({ id: 'plan', type: 'line', source: 'plan', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7c3aed', 'line-width': 4, 'line-dasharray': [1.5, 1.2] } });
-    }
-    const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
-    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 140, bottom: 200, left: 50, right: 50 }, pitch: 45, duration: 900 });
-  };
+  clearLines();
   state.tab = 'map'; state.page = null; renderNav(); renderView();
-  // The map was hidden behind the plan page; let it take its size before fitting the route.
-  setTimeout(() => { map.resize(); if (map.isStyleLoaded()) draw(); else map.once('idle', draw); }, 60);
+  const r = await fetchRoute([here(), ...plan.slice(0, 11).map((x) => x.s)], false);
+  drawLine('plan', r.coords, { dashed: true });
 }
 
 /* ---------- tool pages (from v1) ---------- */
@@ -865,7 +969,7 @@ function renderNav() {
     b.querySelector('i').hidden = !(b.dataset.tab === 'quests' && G.claimable());
   });
 }
-function renderAll() { document.documentElement.lang = state.lang; $('tools-body').innerHTML = searchBox() + toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
+function renderAll() { document.documentElement.lang = state.lang; if ($('mq')) $('mq').placeholder = T('msearch_ph'); $('tools-body').innerHTML = toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
 
 function openStop(id) { state.stopId = id; state.page = 'stop'; renderView(); $('view').scrollTop = 0; }
 function goTab(tab) { state.tab = tab; state.page = null; renderNav(); renderView(); $('view').scrollTop = 0; }
@@ -880,6 +984,7 @@ function setCity(id) {
   if (id === state.city) return;
   state.city = id; store.set('city', id);
   if (id !== 'nearby') NEARBY.stamps = [];
+  clearLines();
   // A chosen city pack wins over a real position elsewhere.
   if (state.pos && city().center && distanceM(state.pos, city().center) > 60000) state.pos = null;
   state.weather = state.prayer = state.places = null;
@@ -889,9 +994,12 @@ function setCity(id) {
 function init() {
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.hours) { state.hours = +el.dataset.hours; renderView(); }
+    if (el.hasAttribute('data-route-card')) { if (state.cardPlace) routeTo(state.cardPlace); }
+    else if (el.dataset.routeStop) { const st = stopById(el.dataset.routeStop); if (st) routeTo(st); }
+    else if (el.hasAttribute('data-route-clear')) clearLines();
+    else if (el.dataset.hours) { state.hours = +el.dataset.hours; renderView(); }
     else if (el.hasAttribute('data-plan-map')) showPlanOnMap();
     else if (el.dataset.hit !== undefined) openHit(+el.dataset.hit);
     else if (el.hasAttribute('data-install')) { installEvt?.prompt(); installEvt?.userChoice.finally(() => { installEvt = null; renderAll(); }); }
@@ -921,14 +1029,20 @@ function init() {
     else if (el.dataset.char) { G.setCharacter(el.dataset.char); renderAll(); }
     else if (el.dataset.city) setCity(el.dataset.city);
     else if (el.id === 'city-toggle') openCityPicker();
-    else if (el.id === 'tools-btn') { $('tools-title').textContent = T('tools'); $('tools-body').innerHTML = searchBox() + toolsList(); $('tools-sheet').hidden = false; }
+    else if (el.id === 'tools-btn') { $('tools-title').textContent = T('tools'); $('tools-body').innerHTML = toolsList(); $('tools-sheet').hidden = false; }
     else if (el.id === 'tools-close') $('tools-sheet').hidden = true;
     else if (el.id === 'locate-btn') locate();
   });
   $('tools-sheet').addEventListener('click', (e) => { if (e.target.id === 'tools-sheet') e.target.hidden = true; });
   setInterval(() => { if (state.tab === 'map' && !state.page) renderMapChrome(); }, 30000);
   $('tools-title').textContent = T('tools');
-  $('tools-sheet').addEventListener('input', (e) => { if (e.target.id === 'q') runSearch(e.target.value); });
+  // Map search bar
+  $('mq-ico').innerHTML = ico('search');
+  $('mq').placeholder = T('msearch_ph');
+  $('mq').addEventListener('input', (e) => onSearchInput(e.target.value));
+  $('mq').addEventListener('focus', (e) => { if (e.target.value) onSearchInput(e.target.value); });
+  $('mq').addEventListener('keydown', (e) => { if (e.key === 'Enter' && lastHits.length) openHit(0); if (e.key === 'Escape') { $('mresults').hidden = true; e.target.blur(); } });
+  $('mq-clear').addEventListener('click', () => { $('mq').value = ''; $('mresults').hidden = true; $('mq-clear').hidden = true; clearLines(); });
   addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderAll(); });
   $('cam').addEventListener('change', (e) => savePhoto(e.target.files && e.target.files[0]));
   renderAll();
@@ -936,7 +1050,7 @@ function init() {
   if (!G.game().onboarded) showWelcome();
   // Resume live location if the visitor already allowed it.
   try { navigator.permissions?.query({ name: 'geolocation' }).then((r) => { if (r.state === 'granted' && store.get('loc', false)) startWatch(); }).catch(() => {}); } catch { /* old browser */ }
-  if (map) map.on('click', () => { $('place-card').hidden = true; });
+  if (map) map.on('click', () => { $('place-card').hidden = true; $('mresults').hidden = true; $('mq').blur(); });
   loadLive();
   if ('serviceWorker' in navigator) {
     const hadController = !!navigator.serviceWorker.controller;

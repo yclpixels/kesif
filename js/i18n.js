@@ -390,3 +390,8 @@ Object.assign(S.en, { er_24h: 'emergency room' });
 Object.assign(S.tr, { er_24h: 'acil servis' });
 Object.assign(S.de, { er_24h: 'Notaufnahme' });
 Object.assign(S.ru, { er_24h: 'приёмный покой' });
+
+Object.assign(S.en, { msearch_ph: 'Search: pharmacy, döner, museum, a name…', web_results: 'More on OpenStreetMap', route_draw: 'Draw route', route_walk: '{km} · {n} min walk', route_drive: '{km} · {n} min by car', route_straight: 'approximate' });
+Object.assign(S.tr, { msearch_ph: 'Ara: eczane, döner, müze, bir yer adı…', web_results: 'OpenStreetMap\'te daha fazlası', route_draw: 'Rota çiz', route_walk: '{km} · {n} dk yürüyüş', route_drive: '{km} · {n} dk araçla', route_straight: 'yaklaşık' });
+Object.assign(S.de, { msearch_ph: 'Suche: Apotheke, Döner, Museum, ein Name…', web_results: 'Mehr bei OpenStreetMap', route_draw: 'Route zeichnen', route_walk: '{km} · {n} Min. zu Fuß', route_drive: '{km} · {n} Min. mit dem Auto', route_straight: 'ungefähr' });
+Object.assign(S.ru, { msearch_ph: 'Поиск: аптека, дёнер, музей, название…', web_results: 'Ещё в OpenStreetMap', route_draw: 'Построить маршрут', route_walk: '{km} · {n} мин пешком', route_drive: '{km} · {n} мин на машине', route_straight: 'примерно' });
