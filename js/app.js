@@ -214,11 +214,17 @@ function tintMap() {
 }
 function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: 58, duration: 800 }); }
 
-function addMarker(lat, lon, html, { onClick, popupHtml, z = 0 } = {}) {
+function addMarker(lat, lon, html, { onClick, popupHtml, z = 0, label = '' } = {}) {
   const el = document.createElement('div');
   el.className = 'mk';
   el.style.zIndex = z;
   el.innerHTML = html;
+  // Pins are buttons for screen readers and keyboards too.
+  if (onClick) {
+    el.setAttribute('role', 'button'); el.tabIndex = 0;
+    if (label) el.setAttribute('aria-label', label);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } });
+  }
   const m = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lon, lat]);
   if (popupHtml) m.setPopup(new maplibregl.Popup({ offset: 30, closeButton: false }).setHTML(popupHtml));
   if (onClick) el.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
@@ -238,14 +244,14 @@ function drawMarkers() {
   markers.forEach((m) => m.remove()); markers = [];
   const pl = state.places;
   if (pl) {
-    for (const p of nearest(pl.worship, 8)) { const k = worshipIcon(p.religion); addMarker(p.lat, p.lon, pinHtml(k, PIN_COLOR[k]), { onClick: () => openPlace(p, T(relKey(p.religion))) }); }
-    for (const p of nearest(pl.food, 6)) addMarker(p.lat, p.lon, pinHtml('food', PIN_COLOR.food), { onClick: () => openPlace(p, T('restaurant')) });
-    for (const p of nearest(pl.hospital, 6)) addMarker(p.lat, p.lon, pinHtml('hospital', PIN_COLOR.hospital), { onClick: () => openPlace(p, T('hospital')) });
+    for (const p of nearest(pl.worship, 8)) { const k = worshipIcon(p.religion); addMarker(p.lat, p.lon, pinHtml(k, PIN_COLOR[k]), { onClick: () => openPlace(p, T(relKey(p.religion))), label: `${p.name || p.local}, ${T(relKey(p.religion))}` }); }
+    for (const p of nearest(pl.food, 6)) addMarker(p.lat, p.lon, pinHtml('food', PIN_COLOR.food), { onClick: () => openPlace(p, T('restaurant')), label: `${p.name || p.local}, ${T('restaurant')}` });
+    for (const p of nearest(pl.hospital, 6)) addMarker(p.lat, p.lon, pinHtml('hospital', PIN_COLOR.hospital), { onClick: () => openPlace(p, T('hospital')), label: `${p.name || p.local}, ${T('hospital')}` });
   }
   for (const s of city().stamps) {
     const got = G.hasStamp(state.city, s.id);
     const cat = (STOP_INFO[s.id]?.cat || s.cat || ['history'])[0];
-    addMarker(s.lat, s.lon, pinHtml(got ? 'check' : cat, got ? PIN_COLOR.got : PIN_COLOR[cat], { big: true, label: s.name, cls: got ? 'got' : 'todo' }), { onClick: () => openStop(s.id), z: 5 });
+    addMarker(s.lat, s.lon, pinHtml(got ? 'check' : cat, got ? PIN_COLOR.got : PIN_COLOR[cat], { big: true, label: s.name, cls: got ? 'got' : 'todo' }), { onClick: () => openStop(s.id), z: 5, label: `${s.name}${got ? ' ✓' : ''}` });
   }
   // The player always stands on the map, like in the design. Faded until the visitor shares location.
   if (meMk) meMk.remove();
@@ -471,6 +477,12 @@ function renderProfile() {
     <label>${esc(T('city_l'))}</label>
     <button type="button" class="btn ghost" id="city-toggle">${ico('map')}${esc(cityName())} ▾</button>
   </section>
+  <section class="panel">
+    <div class="row"><h2>${esc(T('offline_title'))}</h2>${store.get('offline:' + state.city, '') ? `<span class="tag">${esc(store.get('offline:' + state.city, ''))}</span>` : ''}</div>
+    <p class="muted">${esc(T('offline_note'))}</p>
+    <button type="button" class="btn" id="offline-btn">${ico('map')}${esc(T('offline_btn', { city: cityName() }))}</button>
+    <p class="muted" id="offline-msg" aria-live="polite"></p>
+  </section>
   <p class="credit">${esc(T('data_credit'))}</p>`;
 }
 function friendsHtml() {
@@ -483,6 +495,7 @@ function friendsHtml() {
 }
 
 function bindProfile() {
+  $('offline-btn')?.addEventListener('click', saveOffline);
   const msg = $('friend-msg');
   $('share-code').addEventListener('click', async () => {
     const code = G.myCode(playerName());
@@ -546,8 +559,109 @@ function installCard() {
 }
 
 function toolsList() {
-  return `${installCard()}<div class="tools">${[['fare', 'taxi', 't_fare'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
+  return `${installCard()}<button type="button" class="tool tool-plan wide" data-page="plan">${ico('walk')}<span>${esc(T('t_plan'))}<small>${esc(T('plan_teaser'))}</small></span></button><div class="tools">${[['fare', 'taxi', 't_fare'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
     .map(([p, i, l]) => `<button type="button" class="tool tool-${p}" data-page="${p}">${ico(i)}<span>${esc(T(l))}</span></button>`).join('')}</div>`;
+}
+
+/* ---------- offline map ---------- */
+// Vector tiles exist up to zoom 14 (closer views are drawn from them), so a city fits in a few hundred files.
+const MAP_CACHE = 'kesif-map';
+const lon2x = (lon, z) => Math.floor((lon + 180) / 360 * 2 ** z);
+const lat2y = (lat, z) => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z); };
+async function saveOffline() {
+  const msg = $('offline-msg'), btn = $('offline-btn');
+  if (!('caches' in window)) { msg.textContent = T('offline_fail'); return; }
+  btn.disabled = true; msg.textContent = T('offline_progress', { n: 0, total: '…' });
+  try {
+    const style = await (await fetch(MAP_STYLE)).json();
+    const tj = await (await fetch(style.sources.openmaptiles.url)).json();
+    const tpl = tj.tiles[0];
+    // Box around the city's stops (or around the visitor in Near me), with a little margin.
+    const pts = city().stamps.length ? city().stamps : [here()];
+    const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon), m = 0.012;
+    const box = [Math.min(...lons) - m, Math.min(...lats) - m, Math.max(...lons) + m, Math.max(...lats) + m];
+    const urls = [MAP_STYLE, style.sources.openmaptiles.url];
+    for (const ext of ['.json', '.png', '@2x.json', '@2x.png']) urls.push(style.sprite + ext);
+    for (const font of ['Noto Sans Regular', 'Noto Sans Bold', 'Noto Sans Italic']) for (const range of ['0-255', '256-511', '8192-8447']) urls.push(style.glyphs.replace('{fontstack}', encodeURIComponent(font)).replace('{range}', range));
+    for (let z = 10; z <= 14; z++) {
+      for (let x = lon2x(box[0], z); x <= lon2x(box[2], z); x++) for (let y = lat2y(box[3], z); y <= lat2y(box[1], z); y++) urls.push(tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+    }
+    const cache = await caches.open(MAP_CACHE);
+    let done = 0;
+    const queue = [...urls];
+    const worker = async () => { while (queue.length) { const u = queue.shift(); try { if (!(await cache.match(u))) await cache.add(u); } catch { /* skip one bad file */ } done++; if (done % 10 === 0) msg.textContent = T('offline_progress', { n: done, total: urls.length }); } };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    // Places for this city pack, so lists work offline too.
+    if (CITIES[state.city]) try { await cache.add(`./data/places-${state.city}.json`); } catch { /* ok */ }
+    store.set('offline:' + state.city, new Date().toISOString().slice(0, 10));
+    msg.textContent = T('offline_done', { city: cityName(), n: urls.length });
+  } catch { msg.textContent = T('offline_fail'); }
+  btn.disabled = false;
+}
+
+/* ---------- day plan ---------- */
+// Minutes to spend at a stop, by kind of place.
+const VISIT = { museum: 60, history: 40, worship: 25, market: 45, view: 25, park: 35 };
+function buildPlan(hours) {
+  const c = city(), start = here(), budget = hours * 60;
+  let pool = c.stamps.filter((s) => !G.hasStamp(c.id, s.id));
+  if (!pool.length) pool = [...c.stamps];
+  const plan = [];
+  let at = start, used = 0, walked = 0;
+  while (pool.length) {
+    // Nearest next stop from where we are (greedy route: simple and good enough on foot).
+    pool.sort((a, b) => distanceM(at, a) - distanceM(at, b));
+    const s = pool.shift(), d = distanceM(at, s);
+    const walk = Math.round(d * 1.3 / 80), ride = d > 2000;
+    const leg = ride ? Math.round(d * 1.4 / 300 + 5) : Math.max(1, walk);
+    const cat = (STOP_INFO[s.id]?.cat || s.cat || ['history'])[0], stay = VISIT[cat] || 35;
+    if (used + leg + stay > budget) { if (plan.length) continue; }
+    plan.push({ s, leg, ride, stay, startAt: used + leg });
+    used += leg + stay; if (!ride) walked += d * 1.3; at = s;
+    if (used >= budget) break;
+  }
+  return { plan, used, walked };
+}
+function renderPlan() {
+  const h = state.hours || 4, { plan, used, walked } = buildPlan(h);
+  const now = new Date(), fmt = (m) => new Date(now.getTime() + m * 60000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+  state.lastPlan = plan;
+  return `${backHead(T('t_plan'))}
+  <section class="panel"><p class="muted">${esc(T('plan_intro', { city: cityName() }))}</p>
+    <div class="seg">${[2, 4, 6, 8].map((n) => `<button type="button" data-hours="${n}" aria-pressed="${n === h}">${esc(T('hours', { n }))}</button>`).join('')}</div></section>
+  ${plan.length ? `<ol class="timeline">${plan.map((x, i) => `<li>
+      <span class="tl-leg">${ico(x.ride ? 'car' : 'walk')}${esc(T(x.ride ? 'plan_ride' : 'plan_walk', { n: x.leg }))}</span>
+      <button type="button" class="tl-stop" data-stop="${x.s.id}"><b class="tl-n">${i + 1}</b><span><b>${esc(x.s.name)}</b><small>${fmt(x.startAt)} · ${esc(T('plan_visit', { n: x.stay }))}</small></span>${G.hasStamp(x.s.city || state.city, x.s.id) ? ico('check') : `<em>+${G.XP_STAMP} XP</em>`}</button>
+    </li>`).join('')}</ol>
+    <p class="muted center">${esc(T('plan_total', { n: plan.length, km: (walked / 1000).toFixed(1), end: fmt(used) }))}</p>
+    <button type="button" class="btn big" data-plan-map>${ico('map')}${esc(T('plan_show'))}</button>
+    <a class="btn ghost big" href="${planGmaps(plan)}" target="_blank" rel="noopener">${esc(T('plan_gmaps'))} →</a>`
+    : `<p class="muted center">${esc(T('plan_empty'))}</p>`}`;
+}
+function planGmaps(plan) {
+  const h = here(), name = (s) => `${s.name}, ${CITIES[s.city]?.name.en || cityName()}`;
+  const last = plan[plan.length - 1]; if (!last) return '#';
+  const way = plan.slice(0, -1).slice(0, 8).map((x) => name(x.s)).join('|');
+  return `https://www.google.com/maps/dir/?api=1&origin=${h.lat},${h.lon}&destination=${encodeURIComponent(name(last.s))}${way ? `&waypoints=${encodeURIComponent(way)}` : ''}&travelmode=walking`;
+}
+// Draw the planned route as a violet line on the map.
+function showPlanOnMap() {
+  const plan = state.lastPlan || []; if (!map || !plan.length) return;
+  const h = here(), coords = [[h.lon, h.lat], ...plan.map((x) => [x.s.lon, x.s.lat])];
+  const draw = () => {
+    const data = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
+    if (map.getSource('plan')) map.getSource('plan').setData(data);
+    else {
+      map.addSource('plan', { type: 'geojson', data });
+      map.addLayer({ id: 'plan-glow', type: 'line', source: 'plan', paint: { 'line-color': '#a78bfa', 'line-width': 10, 'line-opacity': 0.35, 'line-blur': 2 } });
+      map.addLayer({ id: 'plan', type: 'line', source: 'plan', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7c3aed', 'line-width': 4, 'line-dasharray': [1.5, 1.2] } });
+    }
+    const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 140, bottom: 200, left: 50, right: 50 }, pitch: 45, duration: 900 });
+  };
+  state.tab = 'map'; state.page = null; renderNav(); renderView();
+  // The map was hidden behind the plan page; let it take its size before fitting the route.
+  setTimeout(() => { map.resize(); if (map.isStyleLoaded()) draw(); else map.once('idle', draw); }, 60);
 }
 
 /* ---------- tool pages (from v1) ---------- */
@@ -585,7 +699,7 @@ function renderFare() {
   <section class="panel">
     <h2>${esc(T('fare_title'))}</h2><p class="muted">${esc(T('fare_intro'))}</p>
     ${tx.routes.length ? `<label for="route">${esc(T('route'))} · ${esc(cityName())}</label>
-    <select id="route">${tx.routes.map((r, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(r[0])} · ~${r[1]} km</option>`).join('')}</select>` : `<p class="note">${esc(T('fare_estimate'))}</p>`}
+    <select id="route">${tx.routes.map((r, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(r[0])} · ~${r[1]} km</option>`).join('')}</select>${tx.estimate ? `<p class="note">${esc(T('fare_estimate'))}</p>` : ''}` : `<p class="note">${esc(T('fare_estimate'))}</p>`}
     <label for="km">${esc(T('custom_km'))}</label>
     <input id="km" type="number" inputmode="decimal" min="0.5" max="200" step="0.5" placeholder="${tx.routes[sel] ? tx.routes[sel][1] : 5}">
     <div class="fare"><small>${esc(T('fair_meter'))}</small><b id="fare"></b><small>${esc(T('fare_detail', { open: tx.open, km: tx.perKm, min: tx.min }))}</small></div>
@@ -723,7 +837,7 @@ function finishWelcome(withLoc) {
 }
 
 /* ---------- shell ---------- */
-const PAGES = { stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
+const PAGES = { plan: [renderPlan], stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
 const TABS = { quests: [renderQuests], collection: [renderCollection], profile: [renderProfile, bindProfile] };
 
 function renderView() {
@@ -767,9 +881,11 @@ function setCity(id) {
 function init() {
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.hit !== undefined) openHit(+el.dataset.hit);
+    if (el.dataset.hours) { state.hours = +el.dataset.hours; renderView(); }
+    else if (el.hasAttribute('data-plan-map')) showPlanOnMap();
+    else if (el.dataset.hit !== undefined) openHit(+el.dataset.hit);
     else if (el.hasAttribute('data-install')) { installEvt?.prompt(); installEvt?.userChoice.finally(() => { installEvt = null; renderAll(); }); }
     else if (el.hasAttribute('data-reload')) location.reload();
     else if (el.dataset.collect) { collectStop(el.dataset.collect).then((r) => { if (r.err) toast(r.err); }); }

@@ -176,6 +176,138 @@ export const CITIES = {
     ],
     embassy: 'emb_kap',
     tip: 'tip_kap'
+  },
+  bursa: {
+    id: 'bursa',
+    name: { en: "Bursa", tr: "Bursa", de: "Bursa", ru: "Бурса" },
+    center: { lat: 40.1835, lon: 29.0618, label: "Ulu Cami" },
+    taxi: {
+      open: 65, perKm: 55, min: 190,
+      note: "Bursa, from 11 Oct 2026 (news sites)",
+      routes: [
+        ["Bursa bus terminal → Ulu Cami", 10],
+        ["Ulu Cami → Green Mosque", 1.5],
+        ["Ulu Cami → Muradiye", 2],
+        ["Ulu Cami → Cumalıkızık", 12]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'bu_ulu', name: "Grand Mosque of Bursa", lat: 40.1835, lon: 29.0618 },
+      { id: 'bu_koza', name: "Koza Han", lat: 40.1844, lon: 29.0633 },
+      { id: 'bu_irgandi', name: "Irgandı Bridge", lat: 40.1819, lon: 29.0708 },
+      { id: 'bu_yesilcami', name: "Green Mosque", lat: 40.1822, lon: 29.0746 },
+      { id: 'bu_yesilturbe', name: "Green Tomb", lat: 40.1814, lon: 29.0749 },
+      { id: 'bu_muradiye', name: "Muradiye Complex", lat: 40.1911, lon: 29.0465 },
+      { id: 'bu_cumali', name: "Cumalıkızık", lat: 40.1752, lon: 29.1727 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  eskisehir: {
+    id: 'eskisehir',
+    name: { en: "Eskişehir", tr: "Eskişehir", de: "Eskişehir", ru: "Эскишехир" },
+    center: { lat: 39.7667, lon: 30.524, label: "Odunpazarı" },
+    taxi: {
+      open: 65, perKm: 65, min: 200,
+      note: "Eskişehir, from 1 Oct 2026 (news sites)",
+      routes: [
+        ["YHT station → Odunpazarı", 2.5],
+        ["Odunpazarı → Sazova Park", 5],
+        ["Adalar → Odunpazarı", 1.5]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'es_odun', name: "Odunpazarı Houses", lat: 39.7651, lon: 30.5242 },
+      { id: 'es_alaeddin', name: "Alaeddin Mosque", lat: 39.7667, lon: 30.524 },
+      { id: 'es_omm', name: "Odunpazarı Modern Museum", lat: 39.7648, lon: 30.5225 },
+      { id: 'es_adalar', name: "Adalar and Porsuk River", lat: 39.7855, lon: 30.5096 },
+      { id: 'es_sazova', name: "Sazova Park", lat: 39.7651, lon: 30.4742 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  trabzon: {
+    id: 'trabzon',
+    name: { en: "Trabzon", tr: "Trabzon", de: "Trabzon", ru: "Трабзон" },
+    center: { lat: 41.0053, lon: 39.7315, label: "Meydan" },
+    taxi: {
+      open: 90, perKm: 73, min: 260,
+      note: "Trabzon, from 19 Oct 2026 (news sites; sources disagree)",
+      routes: [
+        ["Trabzon Airport → Meydan", 6],
+        ["Meydan → Hagia Sophia", 3.5],
+        ["Meydan → Boztepe", 2.5],
+        ["Meydan → Atatürk Pavilion", 6]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'tr_kale', name: "Güzelhisar Castle", lat: 41.0078, lon: 39.7347 },
+      { id: 'tr_uzun', name: "Uzun Sokak", lat: 41.0051, lon: 39.7285 },
+      { id: 'tr_muze', name: "Trabzon Museum", lat: 41.005, lon: 39.7266 },
+      { id: 'tr_boztepe', name: "Boztepe", lat: 40.9976, lon: 39.7329 },
+      { id: 'tr_gulbahar', name: "Gülbahar Hatun Mosque", lat: 41.0034, lon: 39.7161 },
+      { id: 'tr_ayasofya', name: "Hagia Sophia of Trabzon", lat: 41.0031, lon: 39.6961 },
+      { id: 'tr_kosk', name: "Atatürk Pavilion", lat: 40.9798, lon: 39.6975 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  mardin: {
+    id: 'mardin',
+    name: { en: "Mardin", tr: "Mardin", de: "Mardin", ru: "Мардин" },
+    center: { lat: 37.3134, lon: 40.7347, label: "Cumhuriyet Meydanı" },
+    taxi: {
+      open: 50, perKm: 45, min: 150,
+      note: "Mardin 2026 (news sites)",
+      routes: [
+        ["Mardin Airport → old town", 20],
+        ["New town (Yenişehir) → old town", 4],
+        ["Old town → Deyrulzafaran", 6]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'ma_muze', name: "Mardin Museum", lat: 37.3138, lon: 40.7346 },
+      { id: 'ma_kirklar', name: "Forty Martyrs Church", lat: 37.3135, lon: 40.7328 },
+      { id: 'ma_ulu', name: "Great Mosque of Mardin", lat: 37.3127, lon: 40.7393 },
+      { id: 'ma_zinciriye', name: "Zinciriye Madrasa", lat: 37.3142, lon: 40.7399 },
+      { id: 'ma_kent', name: "Sakıp Sabancı City Museum", lat: 37.3145, lon: 40.746 },
+      { id: 'ma_kasimiye', name: "Kasımiye Madrasa", lat: 37.3076, lon: 40.7198 },
+      { id: 'ma_deyr', name: "Deyrulzafaran Monastery", lat: 37.2994, lon: 40.7928 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  safranbolu: {
+    id: 'safranbolu',
+    name: { en: "Safranbolu", tr: "Safranbolu", de: "Safranbolu", ru: "Сафранболу" },
+    center: { lat: 41.2446, lon: 32.6935, label: "Çarşı" },
+    taxi: {
+      open: 52, perKm: 50, min: 200, estimate: true,
+      note: "No tariff found: estimate",
+      routes: [
+        ["Karabük bus terminal → Çarşı", 10],
+        ["Kıranköy → Çarşı", 2]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'sa_cinci', name: "Cinci Han", lat: 41.2446, lon: 32.6935 },
+      { id: 'sa_izzet', name: "İzzet Mehmet Paşa Mosque", lat: 41.2439, lon: 32.6931 },
+      { id: 'sa_kaymakam', name: "Kaymakamlar House", lat: 41.2441, lon: 32.6942 },
+      { id: 'sa_hidirlik', name: "Hıdırlık Hill", lat: 41.2437, lon: 32.6961 },
+      { id: 'sa_saat', name: "Clock Tower and City Museum", lat: 41.2462, lon: 32.6904 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
   }
 };
 

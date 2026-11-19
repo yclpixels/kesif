@@ -1,6 +1,6 @@
 # Keşif
 
-*Keşfet. Topla. Geliş.* Türkiye'yi oyuna çeviren web uygulaması. İstanbul, Ankara, İzmir, Antalya ve Kapadokya için hazırlanmış şehir paketleri var; bunların dışında "Yakınım" modu damga duraklarını Wikipedia'dan, restoran, ibadet yeri ve hastaneleri OpenStreetMap'ten canlı bulur. Ziyaretçi gerçek yerlere gidip damga toplar, XP kazanır, seviye atlar, karakter ve rozet açar. Yanında taksi ücreti, namaz vakitleri, bayram takvimi ve acil durum araçları var. Telefona "Ana ekrana ekle" ile uygulama gibi kurulur.
+*Keşfet. Topla. Geliş.* Türkiye'yi oyuna çeviren web uygulaması. İstanbul, Ankara, İzmir, Antalya, Kapadokya, Bursa, Eskişehir, Trabzon, Mardin ve Safranbolu için hazırlanmış şehir paketleri var; bunların dışında "Yakınım" modu damga duraklarını Wikipedia'dan, restoran, ibadet yeri ve hastaneleri OpenStreetMap'ten canlı bulur. Ziyaretçi gerçek yerlere gidip damga toplar, XP kazanır, seviye atlar, karakter ve rozet açar. Yanında taksi ücreti, namaz vakitleri, bayram takvimi ve acil durum araçları var. Telefona "Ana ekrana ekle" ile uygulama gibi kurulur.
 
 ## Ekranlar
 
@@ -14,6 +14,8 @@
 | Koleksiyon | 6 karakter (seviyeyle açılır), 9 rozet, 4 kostüm (rozetle açılır), sıradaki karakter yumurtası, fotoğraf albümü |
 | Fotoğraf | Haritadaki kamera düğmesi ya da yer detayındaki "Fotoğraf çek". Bir durağa 250 m yakında çekilen ilk fotoğraf +150 XP. Fotoğraflar küçültülüp sadece telefonda (IndexedDB) saklanır; albümden büyütülür, paylaşılır, silinir |
 | Profil | Maskot, ad, seviye ve XP, istatistikler, arkadaş kodu ve sıralama, rozetler, gezi araçları, dil ve şehir ayarı |
+| Gün planı | 2–8 saat seç; henüz damgası alınmamış en yakın duraklar sırayla, kalış ve yürüme süreleriyle. Rota haritada çizilir ya da Google Haritalar'da açılır |
+| Çevrimdışı | Görülen harita parçaları, fotoğraflar ve harita kütüphanesi telefonda kalır. Profil > Çevrimdışı harita ile seçili şehrin haritası önceden indirilir |
 | Gezi araçları | Taksi ücreti, namaz ve ibadet yerleri (+hava, restoran, AVM), bayram takvimi, acil |
 
 Oyun kuralları `js/game.js` içinde: damga başına 750 XP, seviye n → n+1 için 400 + 100·n XP. Her şey telefonda saklanır, sunucu yok.

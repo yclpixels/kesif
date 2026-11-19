@@ -251,5 +251,137 @@ export const PHOTOS = {
   "page": "https://commons.wikimedia.org/wiki/File:Kaymakl%C4%B1_Underground_City_large_room.JPG",
   "by": "MusikAnimal",
   "lic": "CC BY-SA 4.0"
+ },
+ "bu_ulu": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Grand_Mosque_of_Bursa_at_South_exterior_side_in_2006_3022.jpg/960px-Grand_Mosque_of_Bursa_at_South_exterior_side_in_2006_3022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Grand_Mosque_of_Bursa_at_South_exterior_side_in_2006_3022.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "bu_koza": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/22/Koza_Han%2C_Bursa1.jpg/960px-Koza_Han%2C_Bursa1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Koza_Han,_Bursa1.jpg",
+  "by": "Jocelyn Erskine-Kellie",
+  "lic": "CC BY-SA 2.0"
+ },
+ "bu_yesilturbe": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6f/Green_Tomb_-_Ye%C5%9Fil_T%C3%BCrbe_%2811%29.jpg/960px-Green_Tomb_-_Ye%C5%9Fil_T%C3%BCrbe_%2811%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Green_Tomb_-_Ye%C5%9Fil_T%C3%BCrbe_(11).jpg",
+  "by": "Yahia.Mokhtar",
+  "lic": "CC BY-SA 4.0"
+ },
+ "bu_yesilcami": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/87/Bursa_Ye%C5%9Fil_Camii_-_Green_Mosque_%282%29.jpg/960px-Bursa_Ye%C5%9Fil_Camii_-_Green_Mosque_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Bursa_Ye%C5%9Fil_Camii_-_Green_Mosque_(2).jpg",
+  "by": "Yahia.Mokhtar",
+  "lic": "CC BY-SA 4.0"
+ },
+ "bu_irgandi": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/BURSA-IRGANDI_K%C3%96PR%C3%9CS%C3%9C_2007_-_panoramio.jpg/960px-BURSA-IRGANDI_K%C3%96PR%C3%9CS%C3%9C_2007_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:BURSA-IRGANDI_K%C3%96PR%C3%9CS%C3%9C_2007_-_panoramio.jpg",
+  "by": "HALUK COMERTEL",
+  "lic": "CC BY 3.0"
+ },
+ "bu_muradiye": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/Muradiye_Complex_01.jpg/960px-Muradiye_Complex_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Muradiye_Complex_01.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "bu_cumali": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e2/Cumal%C4%B1k%C4%B1z%C4%B1k_Evleri.jpg/960px-Cumal%C4%B1k%C4%B1z%C4%B1k_Evleri.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Cumal%C4%B1k%C4%B1z%C4%B1k_Evleri.jpg",
+  "by": "Hamdigumus",
+  "lic": "CC0"
+ },
+ "es_odun": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Traditional_Odunpazar%C4%B1_houses%2C_Eski%C5%9Fehir.jpg/960px-Traditional_Odunpazar%C4%B1_houses%2C_Eski%C5%9Fehir.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Traditional_Odunpazar%C4%B1_houses,_Eski%C5%9Fehir.jpg",
+  "by": "Serragok",
+  "lic": "CC BY-SA 4.0"
+ },
+ "es_sazova": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Sazova_Park%2C_Eski%C5%9Fehir%2C_Turkey_13.jpg/960px-Sazova_Park%2C_Eski%C5%9Fehir%2C_Turkey_13.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Sazova_Park,_Eski%C5%9Fehir,_Turkey_13.jpg",
+  "by": "Murat Özsoy 1958",
+  "lic": "CC BY-SA 4.0"
+ },
+ "es_adalar": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/View_of_Porsuk_River_in_Adalar%2C_Odunpazar%C4%B1%2C_Eski%C5%9Fehir.jpg/960px-View_of_Porsuk_River_in_Adalar%2C_Odunpazar%C4%B1%2C_Eski%C5%9Fehir.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:View_of_Porsuk_River_in_Adalar,_Odunpazar%C4%B1,_Eski%C5%9Fehir.jpg",
+  "by": "Raicem",
+  "lic": "CC BY-SA 4.0"
+ },
+ "tr_boztepe": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b3/Boztepe%2C_Trabzon_-_panoramio.jpg/960px-Boztepe%2C_Trabzon_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Boztepe,_Trabzon_-_panoramio.jpg",
+  "by": "Murat Atasoy",
+  "lic": "CC BY 3.0"
+ },
+ "tr_kale": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Walls_of_Trebizond_2.jpg/960px-Walls_of_Trebizond_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Walls_of_Trebizond_2.jpg",
+  "by": "Dmitri Ivanovich Ermakov (1846 - 1916)",
+  "lic": "Public domain"
+ },
+ "tr_gulbahar": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/Trebisonda%2C_moschea_di_G%C3%BClbahar_Hatun%2C_completata_nel_1514_da_selim_in_onore_di_sua_madre%2C_interno%2C_minbar_03.jpg/960px-Trebisonda%2C_moschea_di_G%C3%BClbahar_Hatun%2C_completata_nel_1514_da_selim_in_onore_di_sua_madre%2C_interno%2C_minbar_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Trebisonda,_moschea_di_G%C3%BClbahar_Hatun,_completata_nel_1514_da_selim_in_onore_di_sua_madre,_interno,_minbar_03.jpg",
+  "by": "Francesco Bini",
+  "lic": "CC BY-SA 4.0"
+ },
+ "tr_muze": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/61/Trabzon_Museum_0039.jpg/960px-Trabzon_Museum_0039.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Trabzon_Museum_0039.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "tr_uzun": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/UZUN_SOKAK.TRABZON_-_panoramio.jpg/960px-UZUN_SOKAK.TRABZON_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:UZUN_SOKAK.TRABZON_-_panoramio.jpg",
+  "by": "Kayhan ERTUGRUL",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ma_ulu": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Inside_Great_Mosque_of_Mardin.jpg/960px-Inside_Great_Mosque_of_Mardin.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Inside_Great_Mosque_of_Mardin.jpg",
+  "by": "Kushared (Mohammed Serdar)",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ma_zinciriye": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Mardin_Zinciriye_Medrese.jpg/960px-Mardin_Zinciriye_Medrese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Mardin_Zinciriye_Medrese.jpg",
+  "by": "Mesutdemirrci",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ma_kirklar": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Mardin_Forty_Martyrs_Church_in_2025_1091.jpg/960px-Mardin_Forty_Martyrs_Church_in_2025_1091.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Mardin_Forty_Martyrs_Church_in_2025_1091.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ma_kent": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7f/Mardin_Sak%C4%B1p_Sabanc%C4%B1_Mardin_Kent_M%C3%BCzesi_in_2025_0829.jpg/960px-Mardin_Sak%C4%B1p_Sabanc%C4%B1_Mardin_Kent_M%C3%BCzesi_in_2025_0829.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Mardin_Sak%C4%B1p_Sabanc%C4%B1_Mardin_Kent_M%C3%BCzesi_in_2025_0829.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "sa_cinci": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/18/Cinci_Han%2C_Safranbolu_2014.jpg/960px-Cinci_Han%2C_Safranbolu_2014.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Cinci_Han,_Safranbolu_2014.jpg",
+  "by": "Hamdigumus",
+  "lic": "CC0"
+ },
+ "sa_izzet": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2c/%C4%B0zzet_Mehmet_Pa%C5%9Fa_Camii.jpg/960px-%C4%B0zzet_Mehmet_Pa%C5%9Fa_Camii.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:%C4%B0zzet_Mehmet_Pa%C5%9Fa_Camii.jpg",
+  "by": "İmmortalance",
+  "lic": "CC BY-SA 4.0"
+ },
+ "sa_saat": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2d/Safranbolu_Old_Government_Building_and_Clock_Tower.jpg/960px-Safranbolu_Old_Government_Building_and_Clock_Tower.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Safranbolu_Old_Government_Building_and_Clock_Tower.jpg",
+  "by": "Uğur Başak",
+  "lic": "CC BY-SA 3.0"
  }
 };
