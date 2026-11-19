@@ -1,0 +1,737 @@
+import { CITIES, EVENTS, CHECKED, CHECKIN_RADIUS } from './data.js';
+import { STOP_INFO } from './stops-info.js';
+import { fetchWeather, fetchPrayer, fetchPlaces, distanceM, getPosition } from './api.js';
+import { t, LANGS, pickLang, weatherText, PHRASES_TR } from './i18n.js';
+import * as G from './game.js';
+import { mascot } from './mascot.js';
+import { PHOTOS } from './photos.js';
+import * as A from './album.js';
+import { ICON } from './icons.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('damga:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('damga:' + k, JSON.stringify(v)); } catch { /* ignore */ } }
+};
+
+const state = {
+  lang: pickLang(),
+  city: store.get('city', 'istanbul'),
+  tab: 'map',           // map | quests | collection | profile
+  page: null,           // fare | cal | sos | pray | stop
+  stopId: null,
+  qtab: 'daily', ctab: 'chars',
+  pos: null,            // { lat, lon } when the visitor shared location
+  weather: null, prayer: null, places: null, loading: false,
+  msg: ''
+};
+if (!CITIES[state.city]) state.city = 'istanbul';
+
+const T = (k, v) => t(state.lang, k, v);
+const city = () => CITIES[state.city];
+const cityName = (c = city()) => c.name[state.lang] || c.name.en;
+const here = () => state.pos || city().center;
+const nf = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : state.lang);
+const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
+// Open the place itself (its page with hours, reviews, phone), not just a dropped pin.
+// "Name, street, city" makes Google jump straight to the right place, even for chains.
+// Places without a name (some police stations, pharmacies) fall back to the coordinates.
+const mapUrl = (p) => {
+  const name = p.local || p.name;
+  if (!name) return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}`;
+  const q = [name, p.street, CITIES[state.city]?.name.en].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+};
+// Walking directions to a passport stop, by name and city so Maps shows the landmark, not a coordinate.
+const dirUrl = (s) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${s.name}, ${CITIES[s.city]?.name.en || ''}`)}&travelmode=walking`;
+const clock = () => { try { return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' }); } catch { return new Date().toTimeString().slice(0, 5); } };
+const nearest = (list, n) => { const h = here(); return (list || []).map((p) => ({ ...p, d: distanceM(h, p) })).sort((a, b) => a.d - b.d).slice(0, n); };
+const allStops = () => Object.values(CITIES).flatMap((c) => c.stamps.map((s) => ({ ...s, city: c.id })));
+const stopById = (id) => allStops().find((s) => s.id === id);
+const playerName = () => G.game().name || T('traveler');
+
+/* ---------- icons ---------- */
+const ico = (k, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
+
+/* ---------- data loading ---------- */
+let loadRun = 0;
+async function loadLive() {
+  const h = here(), run = ++loadRun;
+  state.loading = true;
+  const set = (k) => (v) => { if (run === loadRun) { state[k] = v; onData(); } return v; };
+  await Promise.all([fetchWeather(h.lat, h.lon).then(set('weather')), fetchPrayer(h.lat, h.lon).then(set('prayer')), fetchPlaces(state.city).then(set('places'))]);
+  if (run === loadRun) { state.loading = false; onData(); }
+}
+// Live data appears on the map chrome and on the prayer and SOS pages; leave other screens alone.
+function onData() {
+  renderMapChrome(); drawMarkers();
+  if (state.page === 'pray' || state.page === 'sos') renderView();
+}
+
+function pickCityFor(p) {
+  let best = null;
+  for (const c of Object.values(CITIES)) { const d = distanceM(p, c.center); if (d < 60000 && (!best || d < best.d)) best = { id: c.id, d }; }
+  if (best && best.id !== state.city) { state.city = best.id; store.set('city', state.city); return true; }
+  return false;
+}
+async function locate() {
+  try {
+    const p = await getPosition();
+    state.pos = { lat: p.lat, lon: p.lon, acc: p.acc };
+    if (pickCityFor(p)) renderAll();
+    toast('');
+    startWatch();
+  } catch { toast(T('need_loc')); }
+  centerMap(); loadLive();
+}
+
+// Live location: the player walks on the map with the visitor, and the banner notices arriving at a stop.
+let watchId = null, lastDraw = 0;
+function startWatch() {
+  if (watchId != null || !navigator.geolocation) return;
+  store.set('loc', true);
+  watchId = navigator.geolocation.watchPosition((pos) => {
+    const first = !state.pos;
+    state.pos = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy };
+    moveMe();
+    if (Date.now() - lastDraw > 4000) { lastDraw = Date.now(); renderMapChrome(); }
+    if (first) { if (pickCityFor(state.pos)) renderAll(); centerMap(); loadLive(); }
+  }, () => { /* keep the last known position */ }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+}
+
+// One place for collecting a stamp, used by the detail page and the "you are here" banner.
+async function collectStop(id) {
+  const s = stopById(id);
+  let p = state.pos;
+  try { const f = await getPosition(); p = { lat: f.lat, lon: f.lon, acc: f.acc }; state.pos = p; } catch { if (!p) return { err: T('need_loc') }; }
+  const d = distanceM(p, s);
+  if (d > CHECKIN_RADIUS + Math.min(p.acc || 0, 100)) return { err: T('too_far', { dist: fmtDist(d), radius: CHECKIN_RADIUS }) };
+  const before = G.levelInfo().level;
+  const xp = G.addStamp(s.city, s.id);
+  celebrate(s, xp, before);
+  drawMarkers(); renderMapChrome(); renderNav();
+  if (state.page === 'stop') renderView();
+  return { ok: true };
+}
+
+// Big moment: confetti, the stamp, XP and any level-up or new character.
+function celebrate(stop, xp, beforeLevel) {
+  const after = G.levelInfo().level, ph = PHOTOS[stop.id];
+  const newChar = after > beforeLevel ? G.CHARACTERS.find((c) => c.level > beforeLevel && c.level <= after) : null;
+  const colors = ['#8b5cf6', '#fbbf24', '#34d399', '#f43f5e', '#38bdf8', '#fff'];
+  const bits = Array.from({ length: 36 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${colors[i % colors.length]};animation-delay:${(i % 9) * 0.08}s;--r:${(i * 53) % 360}deg"></i>`).join('');
+  $('celebrate').innerHTML = `
+    <div class="confetti" aria-hidden="true">${bits}</div>
+    <div class="cel-card">
+      <div class="cel-stamp">${ph ? `<img src="${esc(ph.src)}" alt="">` : ''}<span>${ico('check')}</span></div>
+      <h2>${esc(T('stamp_got_title'))}</h2>
+      <p>${esc(stop.name)}</p>
+      <b class="cel-xp">${ico('collection')}${esc(T('plus_xp', { n: xp }))}</b>
+      ${after > beforeLevel ? `<p class="cel-level">${esc(T('level_up', { n: after }))}</p>` : ''}
+      ${newChar ? `<div class="cel-char">${mascot(newChar, { size: 72 })}<span>${esc(T('new_char', { name: T('ch_' + newChar.id) }))}</span></div>` : ''}
+      <button type="button" class="btn big" data-cel-close>${esc(T('tap_continue'))}</button>
+    </div>`;
+  $('celebrate').hidden = false;
+  if (navigator.vibrate) try { navigator.vibrate([30, 40, 60]); } catch { /* not supported */ }
+}
+
+// Apple Maps style place card for restaurants, places of worship and hospitals.
+function openPlace(p, kindLabel) {
+  const d = distanceM(here(), p), walk = Math.max(1, Math.round(d * 1.3 / 80));
+  const q = [p.local || p.name, p.street, CITIES[state.city]?.name.en].filter(Boolean).join(', ');
+  const dir = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}&travelmode=walking`;
+  const tel = (p.phone || '').split(';')[0].trim();
+  $('place-card').innerHTML = `
+    <div class="pc-head"><div><h2>${esc(p.name || p.local || kindLabel)}</h2><small>${esc([kindLabel, cuisineText(p.cuisine)].filter(Boolean).join(' · '))}</small></div>
+      <button type="button" class="round sm" data-pc-close aria-label="${esc(T('close'))}">✕</button></div>
+    <div class="pc-meta"><span>${ico('walk')}${fmtDist(d)} · ${esc(T('min', { n: walk }))}</span>${p.street ? `<span>${ico('pin')}${esc(p.street)}</span>` : ''}${tel ? `<span class="sel">${ico('bell')}${esc(tel)}</span>` : ''}</div>
+    <div class="pc-actions">
+      <a class="btn" href="${dir}" target="_blank" rel="noopener">${ico('walk')}${esc(T('directions'))}</a>
+      ${tel ? `<a class="btn ghost" href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}">${esc(T('call'))}</a>` : ''}
+      <a class="btn ghost" href="${mapUrl(p)}" target="_blank" rel="noopener">${esc(T('open_maps'))}</a>
+    </div>`;
+  $('place-card').hidden = false;
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(text) {
+  const el = $('toast');
+  if (!text) { el.hidden = true; return; }
+  el.textContent = text; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3500);
+}
+function reward(xp, what) {
+  const before = G.levelInfo(G.game().xp - xp).level, after = G.levelInfo().level;
+  toast(T('got_xp', { n: xp, what }) + (after > before ? ' · ' + T('level', { n: after }) + '!' : ''));
+}
+
+/* ---------- map ---------- */
+// Tilted 3D city map (MapLibre + OpenFreeMap "liberty" style with extruded buildings), close to the
+// illustrated city in the design. Free, no API key.
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+let map, markers = [];
+function initMap() {
+  if (!window.maplibregl) { $('map').innerHTML = `<p class="map-fallback">${esc(T('offline'))}</p>`; return; }
+  map = new maplibregl.Map({
+    container: 'map', style: MAP_STYLE, center: [here().lon, here().lat], zoom: 16.2, pitch: 58, bearing: -18,
+    attributionControl: false, maxPitch: 70
+  });
+  // Credit line is drawn by us in index.html (#map-credit) so it stays one small, quiet line.
+  map.on('style.load', tintMap);
+}
+// Recolour the base style toward Apple Maps.
+function tintMap() {
+  const set = (id, prop, val) => { if (map.getLayer(id)) try { map.setPaintProperty(id, prop, val); } catch { /* layer differs */ } };
+  // Apple Maps palette: pale grey ground, white-grey buildings, clear blue water, soft green parks.
+  set('building-3d', 'fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, '#f2f1f4', 40, '#e4e2ea', 100, '#d6d3df']);
+  set('building-3d', 'fill-extrusion-opacity', 0.95);
+  set('water', 'fill-color', '#9fd3f5');
+  set('park', 'fill-color', '#c4e8b4');
+  set('landcover_grass', 'fill-color', '#cdeebd');
+  set('landcover_wood', 'fill-color', '#b6e0a4');
+  set('background', 'background-color', '#f5f4f2');
+  // Hide the base style's own point icons so only Keşif pins remain, like a clean Apple Maps view.
+  for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi|transit|railway|aerialway/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+}
+function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: 58, duration: 800 }); }
+
+function addMarker(lat, lon, html, { onClick, popupHtml, z = 0 } = {}) {
+  const el = document.createElement('div');
+  el.className = 'mk';
+  el.style.zIndex = z;
+  el.innerHTML = html;
+  const m = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lon, lat]);
+  if (popupHtml) m.setPopup(new maplibregl.Popup({ offset: 30, closeButton: false }).setHTML(popupHtml));
+  if (onClick) el.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+  m.addTo(map);
+  markers.push(m);
+}
+// Apple Maps style pins: a coloured circle with a white glyph and a small tail.
+// Colours follow iOS system colours so categories read at a glance.
+const PIN_COLOR = { food: '#FF9500', mosque: '#34A853', church: '#5856D6', synagogue: '#007AFF', worship: '#34A853', hospital: '#FF3B30', history: '#AF52DE', museum: '#FF2D55', market: '#FF9F0A', view: '#32ADE6', park: '#30B158', got: '#F5B400' };
+const pinHtml = (icon, color, { big = false, label = '', cls = '' } = {}) =>
+  `<div class="apin${big ? ' big' : ''} ${cls}" style="--c:${color}">${ico(icon)}${label ? `<span class="alabel">${esc(label)}</span>` : ''}</div>`;
+const worshipIcon = (r) => (r === 'christian' ? 'church' : r === 'jewish' ? 'synagogue' : r === 'muslim' ? 'mosque' : 'worship');
+
+function drawMarkers() {
+  if (!map) return;
+  markers.forEach((m) => m.remove()); markers = [];
+  const pl = state.places;
+  if (pl) {
+    for (const p of nearest(pl.worship, 8)) { const k = worshipIcon(p.religion); addMarker(p.lat, p.lon, pinHtml(k, PIN_COLOR[k]), { onClick: () => openPlace(p, T(relKey(p.religion))) }); }
+    for (const p of nearest(pl.food, 6)) addMarker(p.lat, p.lon, pinHtml('food', PIN_COLOR.food), { onClick: () => openPlace(p, T('restaurant')) });
+    for (const p of nearest(pl.hospital, 6)) addMarker(p.lat, p.lon, pinHtml('hospital', PIN_COLOR.hospital), { onClick: () => openPlace(p, T('hospital')) });
+  }
+  for (const s of city().stamps) {
+    const got = G.hasStamp(state.city, s.id);
+    const cat = (STOP_INFO[s.id] || { cat: ['history'] }).cat[0];
+    addMarker(s.lat, s.lon, pinHtml(got ? 'check' : cat, got ? PIN_COLOR.got : PIN_COLOR[cat], { big: true, label: s.name, cls: got ? 'got' : 'todo' }), { onClick: () => openStop(s.id), z: 5 });
+  }
+  // The player always stands on the map, like in the design. Faded until the visitor shares location.
+  if (meMk) meMk.remove();
+  const h = here(), el = document.createElement('div');
+  el.className = 'mk'; el.style.zIndex = 10;
+  el.innerHTML = `<div class="me${state.pos ? '' : ' ghost'}"><i class="beam"></i><i class="ring"></i>${mascot(G.currentCharacter(), { size: 66 })}</div>`;
+  meMk = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([h.lon, h.lat]).addTo(map);
+}
+let meMk = null;
+function moveMe() {
+  if (!meMk) return drawMarkers();
+  meMk.setLngLat([state.pos.lon, state.pos.lat]);
+  meMk.getElement().querySelector('.me')?.classList.remove('ghost');
+}
+function popup(p, sub) {
+  return `<b>${esc(p.name)}</b>${sub ? `<br><small>${esc(sub)}</small>` : ''}${p.phone ? `<br><small>${esc(p.phone)}</small>` : ''}<br><a href="${mapUrl(p)}" target="_blank" rel="noopener">${esc(T('open_maps'))}</a>`;
+}
+const relKey = (r) => (r === 'muslim' ? 'rel_muslim' : r === 'christian' ? 'rel_christian' : r === 'jewish' ? 'rel_jewish' : 'rel_other');
+
+function playerChip() {
+  const li = G.levelInfo();
+  return `<button type="button" class="chip-player" data-go="profile">${mascot(G.currentCharacter(), { size: 40 })}<span><b>${esc(playerName())}</b><small>${esc(T('lv_short', { n: li.level }))}</small></span></button>`;
+}
+
+function renderMapChrome() {
+  const c = city(), wx = state.weather;
+  const next = c.stamps.filter((s) => !G.hasStamp(c.id, s.id)).map((s) => ({ ...s, d: distanceM(here(), s) })).sort((a, b) => a.d - b.d)[0];
+  // Row 1: player chip and bell, same height, pinned to the two edges. Row 2: one centred info pill.
+  $('map-top').innerHTML = `
+    <div class="map-row">
+      ${playerChip()}
+      <button type="button" class="round" id="tools-btn" aria-label="${esc(T('tools'))}">${ico('bell')}${G.claimable() ? '<i class="dot"></i>' : ''}</button>
+    </div>
+    <div class="map-info"><button type="button" id="city-toggle">${esc(cityName())} ▾</button><i></i><span>${wx ? esc(wx.temp) + '°C' : '–'}</span><i></i><span>${clock()}</span></div>`;
+  $('map-bottom').innerHTML = `
+    <div class="map-row">
+      <button type="button" class="round cam" data-photo="" aria-label="${esc(T('take_photo'))}">${ico('camera')}</button>
+      <button type="button" class="round locate" id="locate-btn" aria-label="${esc(T('locate'))}">${ico('locate')}</button>
+    </div>
+    ${next && state.pos && next.d <= CHECKIN_RADIUS + Math.min(state.pos.acc || 0, 100)
+      ? `<button type="button" class="banner here" data-collect="${next.id}">${ico('map', 'star')}<span>${esc(T('at_stop', { name: next.name }))}</span><em>${esc(T('collect_now'))}</em></button>`
+      : next ? `<button type="button" class="banner" data-stop="${next.id}">${ico('collection', 'star')}<span>${esc(T('near_banner', { name: next.name, dist: fmtDist(next.d) }))}</span><b>›</b></button>`
+      : `<div class="banner">${ico('check', 'star')}<span>${esc(T('all_done', { city: cityName() }))}</span></div>`}`;
+}
+
+/* ---------- views ---------- */
+function header(title, right = '') {
+  return `<header class="vhead"><h1>${title}</h1>${right}</header>`;
+}
+function backHead(title) {
+  return `<header class="vhead"><button type="button" class="round" data-back aria-label="${esc(T('back'))}">${ico('back')}</button><h1>${esc(title)}</h1><span></span></header>`;
+}
+function bar(a, b) { return `<div class="xpbar"><div style="width:${Math.min(100, Math.round(a / b * 100))}%"></div></div>`; }
+
+function renderStop() {
+  const s = stopById(state.stopId); if (!s) return '';
+  const info = STOP_INFO[s.id] || { cat: ['history'], en: '', tr: '' };
+  const c = CITIES[s.city], got = G.game().stamps[s.city]?.[s.id];
+  const d = distanceM(here(), s);
+  // Rough times: walking 80 m/min, city driving ~18 km/h plus parking, transit ~13 km/h plus waiting.
+  const walk = Math.max(1, Math.round(d * 1.3 / 80)), drive = Math.max(2, Math.round(d * 1.4 / 300 + 3)), transit = Math.max(5, Math.round(d * 1.3 / 220 + 8));
+  const ph = PHOTOS[s.id], saved = G.isSaved(s.id);
+  return `
+  <div class="hero hero-${info.cat[0]}${ph ? ' photo' : ''}">
+    ${ph ? `<img src="${esc(ph.src)}" alt="${esc(s.name)}" loading="eager" decoding="async" onerror="this.remove()">` : `<div class="hero-art">${ico(info.cat[0], 'big')}</div>`}
+    <button type="button" class="round hb-left" data-back aria-label="${esc(T('back'))}">${ico('back')}</button>
+    <button type="button" class="round hb-right${saved ? ' on' : ''}" data-save="${s.id}" aria-pressed="${saved}" aria-label="${esc(T(saved ? 'saved' : 'save'))}">${ico('bookmark')}</button>
+    ${ph ? `<a class="credit-ph" href="${esc(ph.page)}" target="_blank" rel="noopener">${esc(T('photo_by', { by: ph.by, lic: ph.lic }))}</a>` : ''}
+  </div>
+  <section class="sheet">
+    <h1>${esc(s.name)}</h1>
+    <div class="tags">${info.cat.map((k) => `<span class="tag">${esc(T('cat_' + k))}</span>`).join('')}<span class="tag quiet">${esc(cityName(c))}</span></div>
+    <p>${esc(info[state.lang] || info.en)}</p>
+    <div class="facts"><span>${ico('pin')}${fmtDist(d)}</span>${d < 2500 ? `<span>${ico('walk')}${esc(T('min', { n: walk }))}</span>` : ''}<span>${ico('car')}${esc(T('min', { n: drive }))}</span><span>${ico('bus')}${esc(T('min', { n: transit }))}</span></div>
+    <h2>${esc(T('rewards'))}</h2>
+    <div class="rewards"><div>${ico('collection', 'gold')}<b>${esc(T('plus_xp', { n: G.XP_STAMP }))}</b></div><div>${medal(s.city === 'istanbul' ? 'ist' : 'ank', true)}<b>${esc(T('city_badge', { city: cityName(c) }))}</b></div></div>
+    ${got ? `<p class="done">${ico('check')}${esc(T('collected', { date: got.slice(0, 10) }))}</p>
+      <div class="rate"><span>${esc(T(G.myRating(s.id) ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${s.id}:${n}" aria-label="${n}" aria-pressed="${n <= G.myRating(s.id)}">${ico('collection')}</button>`).join('')}</div></div>`
+      : `<button type="button" class="btn big" id="checkin" data-id="${s.id}">${esc(T('get_stamp'))}</button>
+         <p class="muted" id="stop-msg" aria-live="polite">${state.pos ? '' : esc(T('need_loc'))}</p>`}
+    <div class="my-photos">
+      <div class="row"><h2>${esc(T('your_photos'))}</h2><button type="button" class="btn sm" data-photo="${s.id}">${ico('camera')}${esc(T('take_photo'))}</button></div>
+      ${A.photosFor(s.id).length ? `<div class="strip">${A.photosFor(s.id).map((p) => `<button type="button" data-view="${p.id}"><img src="${A.photoUrl(p.id)}" alt="${esc(s.name)}"></button>`).join('')}</div>`
+        : `<p class="muted">${esc(T('photo_hint', { n: G.XP_PHOTO }))}</p>`}
+    </div>
+    <a class="btn ghost big" href="${dirUrl(s)}" target="_blank" rel="noopener">${esc(T('start'))} →</a>
+  </section>`;
+}
+function bindStop() {
+  const b = $('checkin'); if (!b) return;
+  b.addEventListener('click', async () => {
+    const msg = $('stop-msg');
+    msg.textContent = T('checking'); b.disabled = true;
+    const r = await collectStop(b.dataset.id);
+    if (r.err) { msg.textContent = r.err; b.disabled = false; }
+  });
+}
+
+function renderQuests() {
+  // The daily login reward sits in its own chest card at the bottom, like the design.
+  const list = G.QUESTS.filter((q) => q.period === state.qtab && q.id !== 'd_login');
+  const qIcon = { d_photo: 'camera', s_photo: 'camera', d_stamp: 'collection', d_fare: 'taxi', w_five: 'collection', w_worship: 'worship', s_ist: 'history', s_ank: 'history', s_market: 'market', s_museum: 'museum', s_asia: 'view', s_chars: 'egg' };
+  const qPhoto = { s_photo: 'kale', d_stamp: 'topkapi', w_five: 'galata', w_worship: 'blue', s_ist: 'hagia', s_ank: 'anitkabir', s_market: 'bazaar', s_museum: 'anadolu', s_asia: 'kpier' };
+  const login = G.QUESTS.find((q) => q.id === 'd_login'), ls = G.questState(login);
+  return `${header(`<span class="hicon">${ico('quests')}</span>${esc(T('nav_quests'))}`, `<button type="button" class="round" data-go="profile" aria-label="${esc(T('friends'))}">${ico('profile')}</button>`)}
+  <div class="seg">${['daily', 'weekly', 'special'].map((k) => `<button type="button" data-qtab="${k}" aria-pressed="${state.qtab === k}">${esc(T('q_' + k))}</button>`).join('')}</div>
+  <div class="stack">${list.map((q) => {
+    const s = G.questState(q), ph = PHOTOS[qPhoto[q.id]];
+    return `<article class="quest${s.claimed ? ' claimed' : ''}">
+      <div class="qart qart-${q.id.split('_')[0]}">${ph ? `<img src="${esc(ph.src)}" alt="" loading="lazy" onerror="this.remove()">` : ''}${ico(qIcon[q.id] || 'quests', 'big')}</div>
+      <div class="qbody"><div class="qtop"><h2>${esc(T('q_' + q.id))}</h2><span class="xp">${ico('collection', 'gold')}${esc(T('plus_xp', { n: q.xp }))}</span></div><p>${esc(T('q_' + q.id + '_d'))}</p>
+        <div class="qrow">${bar(s.p, q.goal)}<span class="qn">${s.p} / ${q.goal}</span></div></div>
+      <div class="qact">${s.claimed ? `<span class="ok" title="${esc(T('claimed'))}">${ico('check')}</span>` : s.done ? `<button type="button" class="btn sm gold" data-claim="${q.id}">${esc(T('claim'))}</button>` : `<span class="chev">${ico('chevron')}</span>`}</div>
+    </article>`;
+  }).join('')}</div>
+  <article class="chest-card">
+    <h2>${esc(T('q_d_login'))}</h2>
+    <div class="row"><div class="chest">${ico('chest', 'big')}</div><span class="grow"><b>${esc(T('q_d_login_d'))}</b><small>${ico('collection', 'gold')}${esc(T('plus_xp', { n: login.xp }))}</small></span>
+    ${ls.claimed ? `<span class="ok">${ico('check')}</span>` : `<button type="button" class="btn sm gold" data-claim="d_login">${esc(T('claim'))}</button>`}</div>
+  </article>`;
+}
+
+// Each badge gets its own symbol, like the coloured medals in the design.
+const MEDAL_SYM = {
+  first: 'M24 13l3.2 7 7.6.8-5.7 5 1.7 7.5L24 29.4l-6.8 3.9 1.7-7.5-5.7-5 7.6-.8z',
+  ist: 'M24 12c4 3 7 6 7 11H17c0-5 3-8 7-11zM15 34v-9h18v9zM12 34V20M36 34V20',
+  ank: 'M13 34h22M15 31h18M16 31V21M20 31V21M24 31V21M28 31V21M32 31V21M14 21h20l-10-6z',
+  city: 'M13 34h22M15 31h18M16 31V21M20 31V21M24 31V21M28 31V21M32 31V21M14 21h20l-10-6z',
+  market: 'M14 20l3-6h14l3 6zM14 20h20v13H14zM21 33v-7h6v7',
+  faith: 'M24 12c4 3 7 6 7 11H17c0-5 3-8 7-11zM15 34v-9h18v9z',
+  asia: 'M12 28c4 3 8 3 12 0s8-3 12 0M12 33c4 3 8 3 12 0s8-3 12 0M17 25l2-8h10l2 8z',
+  two: 'M17 15l7 3 7-3v18l-7 3-7-3zM24 18v18M17 15v18M31 15v18',
+  lvl10: 'M17 14h14v6a7 7 0 0 1-14 0zM24 27v4M19 34h10M17 16h-4a4 4 0 0 0 4 6M31 16h4a4 4 0 0 1-4 6',
+  photo: 'M14 19h5l2-3h6l2 3h5v13H14zM24 29a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'
+};
+function medal(id, on) {
+  const hue = { first: '#f59e0b', ist: '#8b5cf6', ank: '#ef4444', market: '#f97316', faith: '#22c55e', asia: '#0ea5e9', two: '#ec4899', lvl10: '#eab308', photo: '#14b8a6', city: '#ef4444' }[id] || '#8b5cf6';
+  const sym = MEDAL_SYM[id] || MEDAL_SYM.first, filled = id === 'first';
+  return `<svg class="medal${on ? '' : ' off'}" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 2l5 4 6-1 2 6 6 2-1 6 4 5-4 5 1 6-6 2-2 6-6-1-5 4-5-4-6 1-2-6-6-2 1-6-4-5 4-5-1-6 6-2 2-6 6 1z" fill="${on ? '#fcd34d' : '#3b3561'}"/><circle cx="24" cy="24" r="15" fill="${on ? hue : '#2a2450'}"/><path d="${sym}" fill="${filled ? (on ? '#fff' : '#4a4378') : 'none'}" stroke="${on ? '#fff' : '#4a4378'}" stroke-width="${filled ? 0 : 2.2}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function renderCollection() {
+  const li = G.levelInfo(), cur = G.currentCharacter();
+  let body = '';
+  if (state.ctab === 'chars') {
+    const next = G.nextCharacter();
+    let xpTo = 0;
+    if (next) { for (let l = li.level; l < next.level; l++) xpTo += 400 + 100 * l; xpTo -= li.into; }
+    body = `<div class="grid2">${G.CHARACTERS.map((c) => {
+      const open = li.level >= c.level, isCur = c.id === cur.id;
+      return `<button type="button" class="char${isCur ? ' cur' : ''}" ${open && !isCur ? `data-char="${c.id}"` : 'disabled'}>
+        ${mascot(c, { size: 96, locked: !open })}
+        <b>${esc(open ? T('ch_' + c.id) : '???')}</b>
+        <small>${isCur ? esc(T('main_char')) + ' · ' + esc(T('lv_short', { n: li.level })) : open ? esc(T('choose')) : esc(T('unlock_at', { n: c.level }))}</small>
+        ${open ? '' : `<span class="lock">${ico('lock')}</span>`}
+      </button>`;
+    }).join('')}</div>
+    <div class="egg">${ico('egg', 'big gold')}<span><b>${esc(T('egg'))}</b><small>${next ? esc(T('egg_d', { n: next.level, xp: nf(xpTo) })) : esc(T('egg_all'))}</small></span></div>`;
+  } else if (state.ctab === 'badges') {
+    body = `<div class="grid3">${G.BADGES.map((b) => { const on = b.test(); return `<div class="badge${on ? '' : ' off'}">${medal(b.id, on)}<small>${esc(T('bd_' + b.id))}</small></div>`; }).join('')}</div>`;
+  } else if (state.ctab === 'album') {
+    const all = A.photos();
+    body = all.length ? `<div class="album">${all.map((p) => `<button type="button" data-view="${p.id}"><img src="${A.photoUrl(p.id)}" alt="${esc(p.place)}" loading="lazy"><small>${esc(p.place)}</small></button>`).join('')}</div>
+      <p class="muted center">${esc(T('album_note'))}</p>`
+      : `<div class="empty">${ico('camera', 'big')}<b>${esc(T('no_photos'))}</b><button type="button" class="btn" data-photo="">${esc(T('take_photo'))}</button></div>`;
+  } else {
+    body = `<div class="grid2">${G.COSTUMES.map((c) => {
+      const on = G.costumeUnlocked(c);
+      return `<div class="char${on ? '' : ' off'}">${mascot(cur, { size: 96, costume: c.id, locked: !on })}<b>${esc(T('co_' + c.id))}</b><small>${on ? '' : esc(T('co_need', { badge: T('bd_' + c.badge) }))}</small>${on ? '' : `<span class="lock">${ico('lock')}</span>`}</div>`;
+    }).join('')}</div>`;
+  }
+  return `${header(esc(T('nav_collection')))}
+  <div class="seg">${[['chars', 'c_chars'], ['badges', 'c_badges'], ['costumes', 'c_costumes'], ['album', 'c_album']].map(([k, l]) => `<button type="button" data-ctab="${k}" aria-pressed="${state.ctab === k}">${esc(T(l))}</button>`).join('')}</div>
+  ${body}`;
+}
+
+function renderProfile() {
+  const g = G.game(), li = G.levelInfo();
+  const earned = G.BADGES.filter((b) => b.test());
+  return `
+  <div class="pro-hero">
+    <button type="button" class="round gear-l" data-scroll="friends-sec" aria-label="${esc(T('friends'))}">${ico('profile')}</button>
+    <button type="button" class="round gear" data-scroll="settings" aria-label="${esc(T('settings_go'))}">${ico('gear')}</button>
+    <i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i>
+    ${mascot(G.currentCharacter(), { size: 150 })}
+    <div class="pro-name"><input id="pname" value="${esc(g.name)}" placeholder="${esc(T('traveler'))}" aria-label="${esc(T('your_name'))}" maxlength="20">${ico('edit')}</div>
+    <b>${esc(T('level', { n: li.level }))}</b>
+    ${bar(li.into, li.need)}
+    <small>${esc(T('xp_of', { a: nf(li.into), b: nf(li.need) }))}</small>
+  </div>
+  <h2 class="sec row">${esc(T('stats'))}<span class="muted">${ico('chevron')}</span></h2>
+  <div class="grid2 stats">
+    <div>${ico('collection', 'gold')}<small>${esc(T('st_xp'))}</small><b>${nf(g.xp)}</b></div>
+    <div>${ico('pin', 'violet')}<small>${esc(T('st_places'))}</small><b>${G.totalStamps()}</b></div>
+    <div>${medal('first', true)}<small>${esc(T('st_badges'))}</small><b>${earned.length} / ${G.BADGES.length}</b></div>
+    <div>${ico('quests', 'gold')}<small>${esc(T('st_quests'))}</small><b>${G.questsDone()}</b></div>
+  </div>
+  <section class="panel">
+    <div class="row" id="friends-sec"><h2>${esc(T('friends'))}</h2><span class="muted">${G.game().friends.length}</span></div>
+    ${friendsHtml()}
+    <button type="button" class="btn" id="share-code">${esc(T('share_code'))}</button>
+    <label for="friend-code">${esc(T('add_code'))}</label>
+    <div class="addrow"><input id="friend-code" type="text" autocomplete="off" spellcheck="false" placeholder="KSF-…"><button type="button" class="btn sm" id="add-friend">${esc(T('add'))}</button></div>
+    <p class="muted" id="friend-msg" aria-live="polite"></p>
+    <p class="muted">${esc(T('rank_note'))}</p>
+  </section>
+  <section class="panel">
+    <div class="row"><h2>${esc(T('c_badges'))}</h2><span class="muted">${earned.length} / ${G.BADGES.length}</span></div>
+    <div class="medals">${[...G.BADGES].sort((a, b) => b.test() - a.test()).slice(0, 5).map((b) => medal(b.id, b.test())).join('')}</div>
+    <button type="button" class="btn ghost" data-go-col="costumes">${esc(T('customize'))} ›</button>
+  </section>
+  <h2 class="sec">${esc(T('tools'))}</h2>
+  ${toolsList()}
+  <h2 class="sec" id="settings">${esc(T('settings'))}</h2>
+  <section class="panel">
+    <label for="lang">${esc(T('language'))}</label>
+    <select id="lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
+    <label>${esc(T('city_l'))}</label>
+    <div class="seg">${Object.values(CITIES).map((c) => `<button type="button" data-city="${c.id}" aria-pressed="${c.id === state.city}">${esc(cityName(c))}</button>`).join('')}</div>
+  </section>
+  <p class="credit">${esc(T('data_credit'))}</p>`;
+}
+function friendsHtml() {
+  const rows = G.leaderboard(playerName());
+  if (rows.length === 1) return `<p class="muted">${esc(T('no_friends'))}</p>`;
+  return `<ol class="ranks">${rows.map((f, i) => {
+    const ch = G.CHARACTERS.find((c) => c.id === f.character) || G.CHARACTERS[0];
+    return `<li class="${f.me ? 'me-row' : ''}"><span class="rk">${i + 1}</span>${mascot(ch, { size: 34 })}<span class="nm"><b>${esc(f.me ? T('you') : f.name)}</b><small title="${f.date ? esc(T('updated', { date: f.date })) : ''}">${esc(T('lv_short', { n: G.levelInfo(f.xp).level }))} · ${esc(T(f.stamps === 1 ? 'n_place' : 'n_places', { n: f.stamps }))}</small></span><span class="xp">${nf(f.xp)} XP</span>${f.me ? '' : `<button type="button" class="x" data-unfriend="${esc(f.id)}" aria-label="${esc(T('remove'))}">✕</button>`}</li>`;
+  }).join('')}</ol>`;
+}
+
+function bindProfile() {
+  const msg = $('friend-msg');
+  $('share-code').addEventListener('click', async () => {
+    const code = G.myCode(playerName());
+    try {
+      if (navigator.share) { await navigator.share({ text: `${T('app_name')}: ${code}` }); return; }
+      await navigator.clipboard.writeText(code); msg.textContent = T('code_copied');
+    } catch { msg.innerHTML = `<span class="sel">${esc(code)}</span>`; }
+  });
+  const add = () => {
+    const f = G.addFriendCode($('friend-code').value);
+    if (!f) { msg.textContent = T('bad_code'); return; }
+    renderView(); $('friend-msg').textContent = T('friend_added', { name: f.name });
+  };
+  $('add-friend').addEventListener('click', add);
+  $('friend-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+  document.querySelectorAll('[data-unfriend]').forEach((b) => b.addEventListener('click', () => { G.removeFriend(b.dataset.unfriend); renderView(); }));
+  $('pname').addEventListener('change', (e) => { G.setName(e.target.value); renderMapChrome(); });
+  $('lang').addEventListener('change', (e) => { state.lang = e.target.value; try { localStorage.setItem('damga:lang', state.lang); } catch {} renderAll(); });
+}
+
+function toolsList() {
+  return `<div class="tools">${[['fare', 'taxi', 't_fare'], ['pray', 'pray', 't_pray'], ['cal', 'cal', 't_cal'], ['sos', 'sos', 't_sos']]
+    .map(([p, i, l]) => `<button type="button" class="tool tool-${p}" data-page="${p}">${ico(i)}<span>${esc(T(l))}</span></button>`).join('')}</div>`;
+}
+
+/* ---------- tool pages (from v1) ---------- */
+// avail: was this kind of place downloaded? false shows "no data yet" instead of "nothing nearby".
+function rowsHtml(items, extra, avail = !!state.places) {
+  if (!items.length) return `<p class="muted">${esc(T(state.loading ? 'loading' : avail ? 'none' : 'no_places'))}</p>`;
+  return `<ul class="list">${items.map((p) => `<li class="item"><span class="l"><a href="${mapUrl(p)}" target="_blank" rel="noopener">${esc(p.name || p.local || (p.kind ? T(p.kind) : '?'))}</a>${extra ? extra(p) : ''}</span><span class="r">${fmtDist(p.d)}</span></li>`).join('')}</ul>`;
+}
+function nextPrayer(pr) { const now = clock(); for (const k of ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']) if (pr[k] > now) return { k, time: pr[k] }; return { k: 'Fajr', time: pr.Fajr }; }
+function pickWorship(list) {
+  const by = { muslim: [], christian: [], jewish: [], other: [] };
+  for (const p of nearest(list, 300)) (by[p.religion] || by.other).push(p);
+  return [...by.muslim.slice(0, 3), ...by.christian.slice(0, 2), ...by.jewish.slice(0, 2), ...by.other.slice(0, 1)].sort((a, b) => a.d - b.d);
+}
+
+function renderPray() {
+  const pr = state.prayer, pl = state.places, np = pr ? nextPrayer(pr) : null, wx = state.weather;
+  return `${backHead(T('t_pray'))}
+  <div class="glance"><div><small>${esc(T('weather'))}</small><b>${wx ? esc(wx.temp) + '°C' : '–'}</b><small>${wx ? esc(weatherText(state.lang, wx.code)) : ''}</small></div><div><small>${esc(T('local_time'))}</small><b>${clock()}</b><small>${esc(T('tz_note'))}</small></div></div>
+  <section class="panel">
+    <div class="row"><h2>${esc(T('prayer'))}</h2><span class="tag">${esc(T('prayer_src'))}</span></div>
+    ${pr ? `<p><b>${esc(T('next_prayer', { name: T('p_' + np.k), time: np.time }))}</b></p><div class="ptimes">${['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].map((k) => `<span${np.k === k ? ' class="on"' : ''}><small>${esc(T('p_' + k))}</small>${esc(pr[k])}</span>`).join('')}</div>` : `<p class="muted">${esc(T('loading'))}</p>`}
+  </section>
+  <section class="panel"><div class="row"><h2>${esc(T('worship'))}</h2><span class="tag">${esc(T('all_faiths'))}</span></div>
+    ${rowsHtml(pl?.worship ? pickWorship(pl.worship) : [], (p) => `<small>${esc(T(relKey(p.religion)))}</small>`, !!pl?.worship)}<p class="muted">${esc(T('worship_tip'))}</p></section>
+  <section class="panel"><h2>${esc(T('eat'))}</h2>
+    ${rowsHtml(pl?.food ? nearest(pl.food, 8) : [], (p) => { const tg = [p.halal && T('halal'), p.vegetarian && T('vegetarian'), p.kosher && T('kosher')].filter(Boolean); return `<small>${esc(cuisineText(p.cuisine))}${tg.length ? ' · ' + tg.map(esc).join(' · ') : ''}${p.phone ? ` · <span class="sel">${esc(p.phone)}</span>` : ''}</small>`; }, !!pl?.food)}
+    <p class="muted">${esc(T('eat_tip'))}</p></section>
+  <section class="panel"><h2>${esc(T('malls'))}</h2>${rowsHtml(pl?.mall ? nearest(pl.mall, 4) : [], null, !!pl?.mall)}</section>`;
+}
+
+function renderFare() {
+  const c = city(), tx = c.taxi, sel = store.get('route:' + c.id, 0);
+  return `${backHead(T('t_fare'))}
+  <section class="panel">
+    <h2>${esc(T('fare_title'))}</h2><p class="muted">${esc(T('fare_intro'))}</p>
+    <label for="route">${esc(T('route'))} · ${esc(cityName())}</label>
+    <select id="route">${tx.routes.map((r, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(r[0])} · ~${r[1]} km</option>`).join('')}</select>
+    <label for="km">${esc(T('custom_km'))}</label>
+    <input id="km" type="number" inputmode="decimal" min="0.5" max="200" step="0.5" placeholder="${tx.routes[sel][1]}">
+    <div class="fare"><small>${esc(T('fair_meter'))}</small><b id="fare"></b><small>${esc(T('fare_detail', { open: tx.open, km: tx.perKm, min: tx.min }))}</small></div>
+  </section>
+  <section class="panel"><h2>${esc(T('watch'))}</h2><ul class="bullets"><li>${esc(T('w1'))}</li><li>${esc(T('w2'))}</li><li>${esc(T('w3'))}</li><li>${esc(T('w4'))}</li></ul></section>
+  <section class="panel"><div class="row"><h2>${esc(T('transit'))}</h2><span class="tag">${esc(c.card)}</span></div>
+    <ul class="list">${c.transit.map(([k, v]) => `<li class="item"><span class="l">${esc(T(k))}</span><span class="r">${esc(v)}</span></li>`).join('')}</ul>
+    <p class="muted">${esc(T('card_tip', { card: c.card }))}</p></section>
+  <p class="muted center">${esc(T('prices_checked', { date: CHECKED }))}</p>`;
+}
+function bindFare() {
+  const tx = city().taxi, route = $('route'), km = $('km');
+  const calc = () => {
+    const custom = parseFloat(km.value), dist = custom > 0 ? custom : tx.routes[+route.value][1];
+    const base = Math.max(tx.min, tx.open + tx.perKm * dist), r10 = (n) => Math.round(n / 10) * 10;
+    $('fare').textContent = `${nf(r10(base))} – ${nf(r10(base * 1.15))} TL`;
+  };
+  route.addEventListener('change', () => { store.set('route:' + state.city, +route.value); km.value = ''; km.placeholder = tx.routes[+route.value][1]; calc(); });
+  km.addEventListener('input', calc);
+  calc();
+  G.markFareUsed();
+}
+
+function renderCal() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const locale = { en: 'en-GB', tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang];
+  return `${backHead(T('t_cal'))}
+  <section class="panel"><p class="muted">${esc(T('cal_intro'))}</p>
+    <ul class="list">${EVENTS.filter(([d]) => new Date(d + 'T00:00:00') >= today).map(([d, k, kind]) => {
+      const dt = new Date(d + 'T00:00:00'), n = Math.round((dt - today) / 864e5);
+      return `<li class="item top"><span class="date">${esc(dt.toLocaleDateString(locale, { day: '2-digit', month: 'short' }))}</span><span class="l grow">${esc(T(k))}<small>${esc(T(kind))}</small></span><span class="tag ${kind === 'public' ? 'hot' : ''}">${n === 0 ? esc(T('today')) : esc(T('days', { n }))}</span></li>`;
+    }).join('')}</ul><p class="muted">${esc(T('cal_note'))}</p></section>
+  <section class="panel"><h2>${esc(cityName())}</h2><p class="muted">${esc(T(city().tip))}</p></section>`;
+}
+
+function renderSos() {
+  const pl = state.places;
+  const er = pl?.hospital ? pl.hospital.filter((p) => p.emergency) : [];
+  const near = pl ? [...nearest(er.length ? er : pl.hospital, 2).map((p) => ({ ...p, kind: 'hospital' })), ...nearest(pl.police, 1).map((p) => ({ ...p, kind: 'police' })), ...nearest(pl.pharmacy, 2).map((p) => ({ ...p, kind: 'pharmacy' }))] : [];
+  const sosAvail = !!(pl && (pl.hospital || pl.police || pl.pharmacy));
+  return `${backHead(T('t_sos'))}
+  <div class="sos"><small>${esc(T('emergency'))}</small><b class="sel">112</b></div>
+  <section class="panel"><h2>${esc(T('nearest'))}</h2>${rowsHtml(near, (p) => `<small>${esc(T(p.kind))}${p.phone ? ` · <span class="sel">${esc(p.phone)}</span>` : ''}</small>`, sosAvail)}<p class="muted">${esc(T('duty_pharmacy'))}</p></section>
+  <section class="panel"><h2>${esc(T('embassy'))}</h2><p class="muted">${esc(T(city().embassy))}</p></section>
+  <section class="panel"><h2>${esc(T('phrases'))}</h2><ul class="phrases">${Object.keys(PHRASES_TR).map((k) => `<li><b lang="tr">${esc(PHRASES_TR[k])}</b>${state.lang !== 'tr' ? `<small>${esc(T(k))}</small>` : ''}</li>`).join('')}</ul></section>`;
+}
+
+/* ---------- photos ---------- */
+let photoTarget = '';
+function startPhoto(stopId) { photoTarget = stopId; $('cam').value = ''; $('cam').click(); }
+
+async function savePhoto(file) {
+  if (!file) return;
+  toast(T('photo_saving'));
+  let pos = null;
+  try { const p = await getPosition(8000); pos = { lat: p.lat, lon: p.lon, acc: p.acc }; state.pos = { lat: p.lat, lon: p.lon }; } catch { /* no location: still keep the photo */ }
+  // Which stop is this? The one the visitor chose, or the closest one they are standing at.
+  let stop = photoTarget ? stopById(photoTarget) : null;
+  if (!stop && pos) stop = allStops().map((x) => ({ ...x, d: distanceM(pos, x) })).filter((x) => x.d <= CHECKIN_RADIUS + Math.min(pos.acc || 0, 100)).sort((a, b) => a.d - b.d)[0] || null;
+  const atStop = !!(stop && pos && distanceM(pos, stop) <= CHECKIN_RADIUS + Math.min(pos.acc || 0, 100));
+  try {
+    await A.addPhoto(file, { stop: stop?.id || '', city: stop?.city || state.city, place: stop?.name || T('photo_view'), pos });
+  } catch { toast(T('photo_failed')); return; }
+  const xp = G.logPhoto(atStop ? stop.id : '');
+  if (xp) reward(xp, T('photo_at', { name: stop.name }));
+  else toast(T('photo_saved') + (stop && !atStop ? ' · ' + T('photo_far') : ''));
+  renderAll();
+}
+
+async function openViewer(id) {
+  const p = A.photos().find((x) => x.id === id); if (!p) return;
+  const locale = { en: 'en-GB', tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang];
+  $('viewer').innerHTML = `
+    <img src="${A.photoUrl(p.id)}" alt="${esc(p.place)}">
+    <div class="vbar">
+      <span><b>${esc(p.place)}</b><small>${esc(new Date(p.ts).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }))}</small></span>
+      <button type="button" class="round" data-vshare="${p.id}" aria-label="${esc(T('share'))}">${ico('share')}</button>
+      <button type="button" class="round" data-vdel="${p.id}" aria-label="${esc(T('delete'))}">${ico('trash')}</button>
+      <button type="button" class="round" data-vclose aria-label="${esc(T('back'))}">✕</button>
+    </div>
+    <p class="vconfirm" id="vconfirm" hidden><span>${esc(T('delete_q'))}</span><button type="button" class="btn sm" data-vdel-yes="${p.id}">${esc(T('delete'))}</button><button type="button" class="btn sm ghost" data-vclose>${esc(T('cancel'))}</button></p>`;
+  $('viewer').hidden = false;
+}
+async function sharePhoto(id) {
+  const f = await A.photoFile(id); if (!f) return;
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: T('app_name') }); return; }
+  } catch { return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- cuisine names (OpenStreetMap values are English codes) ---------- */
+const CUISINE = {
+  tr: { turkish: 'Türk mutfağı', kebab: 'Kebap', regional: 'Yöresel', seafood: 'Deniz ürünleri', fish: 'Balık', pizza: 'Pizza', burger: 'Burger', italian: 'İtalyan', chinese: 'Çin', japanese: 'Japon', sushi: 'Suşi', coffee_shop: 'Kahve', breakfast: 'Kahvaltı', international: 'Dünya mutfağı', vegetarian: 'Vejetaryen', vegan: 'Vegan', meat: 'Et', steak_house: 'Et', chicken: 'Tavuk', dessert: 'Tatlı', ottoman: 'Osmanlı', mediterranean: 'Akdeniz', greek: 'Yunan', indian: 'Hint', asian: 'Asya', homestyle: 'Ev yemekleri', soup: 'Çorba', pide: 'Pide', lahmacun: 'Lahmacun', doner: 'Döner', meyhane: 'Meyhane', börek: 'Börek' }
+};
+function cuisineText(raw) {
+  if (!raw) return '';
+  const dict = CUISINE[state.lang] || {};
+  return raw.split(/[;,]\s*/).slice(0, 3).map((c) => dict[c.trim()] || (c.trim().charAt(0).toUpperCase() + c.trim().slice(1)).replace(/_/g, ' ')).join(', ');
+}
+
+/* ---------- first run ---------- */
+function showWelcome() {
+  $('welcome').innerHTML = `
+    <div class="wl">
+      <div class="wl-hero">${mascot(G.currentCharacter(), { size: 150 })}</div>
+      <h1>${esc(T('app_name'))}</h1>
+      <p class="wl-tag">${esc(T('tagline'))}</p>
+      <p class="wl-sub">${esc(T('welcome_sub'))}</p>
+      <label for="wl-name">${esc(T('your_name'))}</label>
+      <input id="wl-name" maxlength="20" placeholder="${esc(T('traveler'))}" autocomplete="nickname">
+      <div class="two">
+        <div><label for="wl-lang">${esc(T('language'))}</label><select id="wl-lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}"${k === state.lang ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div><label for="wl-city">${esc(T('city_l'))}</label><select id="wl-city">${Object.values(CITIES).map((c) => `<option value="${c.id}"${c.id === state.city ? ' selected' : ''}>${esc(cityName(c))}</option>`).join('')}</select></div>
+      </div>
+      <button type="button" class="btn big" data-start="loc">${ico('locate')}${esc(T('start_loc'))}</button>
+      <button type="button" class="btn ghost big" data-start="noloc">${esc(T('start_noloc'))}</button>
+      <p class="muted center">${esc(T('loc_privacy'))}</p>
+    </div>`;
+  $('welcome').hidden = false;
+  $('wl-lang').addEventListener('change', (e) => { state.lang = e.target.value; try { localStorage.setItem('damga:lang', state.lang); } catch {} const n = $('wl-name').value; showWelcome(); $('wl-name').value = n; renderAll(); });
+}
+function finishWelcome(withLoc) {
+  G.setName($('wl-name').value);
+  const c = $('wl-city').value;
+  G.setOnboarded();
+  $('welcome').hidden = true;
+  if (c !== state.city) setCity(c); else renderAll();
+  if (withLoc) locate();
+}
+
+/* ---------- shell ---------- */
+const PAGES = { stop: [renderStop, bindStop], pray: [renderPray], fare: [renderFare, bindFare], cal: [renderCal], sos: [renderSos] };
+const TABS = { quests: [renderQuests], collection: [renderCollection], profile: [renderProfile, bindProfile] };
+
+function renderView() {
+  const onMap = state.tab === 'map' && !state.page;
+  $('map-view').hidden = !onMap;
+  $('view').hidden = onMap;
+  if (onMap) { if (map) setTimeout(() => map.resize(), 0); return; }
+  const [draw, bind] = state.page ? PAGES[state.page] : TABS[state.tab];
+  $('view').innerHTML = draw();
+  $('view').className = 'view' + (state.page === 'stop' ? ' flush' : '');
+  if (bind) bind();
+}
+function renderNav() {
+  document.querySelectorAll('.nav button').forEach((b) => {
+    b.setAttribute('aria-selected', b.dataset.tab === state.tab);
+    b.querySelector('span').textContent = T('nav_' + b.dataset.tab);
+    b.querySelector('i').hidden = !(b.dataset.tab === 'quests' && G.claimable());
+  });
+}
+function renderAll() { document.documentElement.lang = state.lang; $('tools-body').innerHTML = toolsList(); $('tools-title').textContent = T('tools'); renderNav(); renderMapChrome(); drawMarkers(); renderView(); }
+
+function openStop(id) { state.stopId = id; state.page = 'stop'; renderView(); $('view').scrollTop = 0; }
+function goTab(tab) { state.tab = tab; state.page = null; renderNav(); renderView(); $('view').scrollTop = 0; }
+function setCity(id) {
+  if (id === state.city) return;
+  state.city = id; store.set('city', id);
+  if (state.pos && distanceM(state.pos, city().center) > 60000) state.pos = null;
+  state.weather = state.prayer = state.places = null;
+  centerMap(); renderAll(); loadLive();
+}
+
+function init() {
+  initMap();
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    if (!el) return;
+    if (el.dataset.collect) { collectStop(el.dataset.collect).then((r) => { if (r.err) toast(r.err); }); }
+    else if (el.hasAttribute('data-cel-close')) $('celebrate').hidden = true;
+    else if (el.hasAttribute('data-pc-close')) $('place-card').hidden = true;
+    else if (el.dataset.start) finishWelcome(el.dataset.start === 'loc');
+    else if (el.dataset.photo !== undefined) startPhoto(el.dataset.photo);
+    else if (el.dataset.view) openViewer(el.dataset.view);
+    else if (el.dataset.vshare) sharePhoto(el.dataset.vshare);
+    else if (el.dataset.vdel) $('vconfirm').hidden = false;
+    else if (el.dataset.vdelYes) { A.deletePhoto(el.dataset.vdelYes).then(() => { $('viewer').hidden = true; renderAll(); }); }
+    else if (el.hasAttribute('data-vclose')) $('viewer').hidden = true;
+    else if (el.dataset.rate) { const [id, n] = el.dataset.rate.split(':'); G.rate(id, +n); renderView(); }
+    else if (el.dataset.scroll) $(el.dataset.scroll)?.scrollIntoView({ behavior: 'smooth' });
+    else if (el.dataset.save) { const on = G.toggleSaved(el.dataset.save); el.classList.toggle('on', on); el.setAttribute('aria-pressed', on); el.setAttribute('aria-label', T(on ? 'saved' : 'save')); toast(T(on ? 'saved' : 'save') + (on ? ' ✓' : '')); if (!on) toast(''); }
+    else if (el.dataset.tab) goTab(el.dataset.tab);
+    else if (el.dataset.go) goTab(el.dataset.go);
+    else if (el.dataset.stop) openStop(el.dataset.stop);
+    else if (el.dataset.page) { $('tools-sheet').hidden = true; state.page = el.dataset.page; renderView(); $('view').scrollTop = 0; }
+    else if (el.hasAttribute('data-back')) { state.page = null; renderView(); }
+    else if (el.dataset.qtab) { state.qtab = el.dataset.qtab; renderView(); }
+    else if (el.dataset.ctab) { state.ctab = el.dataset.ctab; renderView(); }
+    else if (el.dataset.goCol) { state.ctab = el.dataset.goCol; goTab('collection'); }
+    else if (el.dataset.claim) { const q = G.QUESTS.find((x) => x.id === el.dataset.claim); const xp = G.claim(q); if (xp) reward(xp, T('q_' + q.id)); renderAll(); }
+    else if (el.dataset.char) { G.setCharacter(el.dataset.char); renderAll(); }
+    else if (el.dataset.city) setCity(el.dataset.city);
+    else if (el.id === 'city-toggle') { const ids = Object.keys(CITIES); setCity(ids[(ids.indexOf(state.city) + 1) % ids.length]); }
+    else if (el.id === 'tools-btn') $('tools-sheet').hidden = false;
+    else if (el.id === 'tools-close') $('tools-sheet').hidden = true;
+    else if (el.id === 'locate-btn') locate();
+  });
+  $('tools-sheet').addEventListener('click', (e) => { if (e.target.id === 'tools-sheet') e.target.hidden = true; });
+  setInterval(() => { if (state.tab === 'map' && !state.page) renderMapChrome(); }, 30000);
+  $('tools-body').innerHTML = toolsList();
+  $('tools-title').textContent = T('tools');
+  $('cam').addEventListener('change', (e) => savePhoto(e.target.files && e.target.files[0]));
+  renderAll();
+  A.loadAlbum().then(() => renderAll());
+  if (!G.game().onboarded) showWelcome();
+  // Resume live location if the visitor already allowed it.
+  try { navigator.permissions?.query({ name: 'geolocation' }).then((r) => { if (r.state === 'granted' && store.get('loc', false)) startWatch(); }).catch(() => {}); } catch { /* old browser */ }
+  if (map) map.on('click', () => { $('place-card').hidden = true; });
+  loadLive();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+init();

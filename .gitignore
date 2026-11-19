@@ -1,0 +1,5 @@
+data/.raw/
+apptest/
+.DS_Store
+.claude/
+docs/

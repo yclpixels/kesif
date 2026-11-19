@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Keşif · Keşfet. Topla. Geliş.</title>
+  <meta name="description" content="Istanbul and Ankara as a game: collect stamps, earn XP, unlock characters. Plus fair taxi prices, prayer times and emergency help.">
+  <meta name="theme-color" content="#1c1546">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="app">
+    <div id="map-view" class="map-view">
+      <div id="map" class="map"></div>
+      <p id="map-credit" class="map-credit"><a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://openmaptiles.org" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></p>
+      <div id="map-top" class="map-top"></div>
+      <div id="map-bottom" class="map-bottom"></div>
+      <section id="place-card" class="place-card" hidden></section>
+    </div>
+
+    <main id="view" class="view" hidden></main>
+
+    <nav class="nav" aria-label="Keşif">
+      <button type="button" data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 5-5.5 10.2-7.4 11.8a1 1 0 0 1-1.2 0C9.5 20.2 4 15 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span></span><i hidden></i></button>
+      <button type="button" data-tab="quests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg><span></span><i hidden></i></button>
+      <button type="button" data-tab="collection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg><span></span><i hidden></i></button>
+      <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span></span><i hidden></i></button>
+    </nav>
+
+    <div id="tools-sheet" class="sheet-wrap" hidden>
+      <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="tools-title">
+        <div class="row"><h2 id="tools-title"></h2><button type="button" class="round" id="tools-close" aria-label="Close">✕</button></div>
+        <div id="tools-body"></div>
+      </div>
+    </div>
+
+    <div id="celebrate" class="celebrate" role="dialog" aria-modal="true" hidden></div>
+    <div id="welcome" class="welcome" role="dialog" aria-modal="true" hidden></div>
+    <div id="viewer" class="viewer" role="dialog" aria-modal="true" hidden></div>
+    <input id="cam" type="file" accept="image/*" capture="environment" hidden>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </div>
+  <noscript>Keşif needs JavaScript.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
