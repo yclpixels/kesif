@@ -427,3 +427,7 @@ Object.assign(S.en, { come_closer: 'Come within {n} m to collect the stamp.', op
 Object.assign(S.tr, { come_closer: 'Damgayı almak için {n} m yakına gel.', open_gmaps: 'Google Haritalar\'da aç' });
 Object.assign(S.de, { come_closer: 'Komm auf {n} m heran, um den Stempel zu holen.', open_gmaps: 'In Google Maps öffnen' });
 Object.assign(S.ru, { come_closer: 'Подойдите ближе чем на {n} м, чтобы получить штамп.', open_gmaps: 'Открыть в Google Картах' });
+Object.assign(S.en, { city_search: 'Search a province or district', packs_title: 'Stamp packs', all_provinces: 'All provinces', n_districts: '{n} districts', has_pack: 'stamp pack', centre_of: '{name} (centre)' });
+Object.assign(S.tr, { city_search: 'İl ya da ilçe ara', packs_title: 'Damga paketleri', all_provinces: 'Tüm iller', n_districts: '{n} ilçe', has_pack: 'damga paketi', centre_of: '{name} (merkez)' });
+Object.assign(S.de, { city_search: 'Provinz oder Bezirk suchen', packs_title: 'Stempelpakete', all_provinces: 'Alle Provinzen', n_districts: '{n} Bezirke', has_pack: 'Stempelpaket', centre_of: '{name} (Zentrum)' });
+Object.assign(S.ru, { city_search: 'Найти провинцию или район', packs_title: 'Наборы штампов', all_provinces: 'Все провинции', n_districts: 'районов: {n}', has_pack: 'набор штампов', centre_of: '{name} (центр)' });

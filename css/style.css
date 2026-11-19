@@ -559,3 +559,10 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .me .beam { height: 120px; opacity: .8; }
 .map-top .map-info { min-width: 0; max-width: 46vw; }
 .map-top .map-info #city-toggle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* province / district picker */
+.cq { width: 100%; margin-bottom: 10px; }
+.cities .chead { padding: 12px 4px 2px; font-size: .75rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.cities .chev { color: var(--muted); font-size: 1.3rem; }
+.link-back { border: 0; background: none; color: var(--glow); font: inherit; font-weight: 700; padding: 4px 0 10px; cursor: pointer; }
+.prov-title { margin: 0 0 10px; font-size: 1.3rem; }

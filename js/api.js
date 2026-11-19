@@ -72,6 +72,21 @@ export async function fetchPrayer(lat, lon) {
 // Places come from a snapshot of OpenStreetMap shipped with the app (data/places-<city>.json),
 // built by tools/build_places.py. The public Overpass servers are too slow to query live.
 const placeFiles = {};
+// Anywhere in Türkiye: the 3×3 squares (0.25° each, ~25 km) around a point, from data/grid/.
+const GRID = 0.25, KINDS = ['worship', 'food', 'mall', 'hospital', 'pharmacy', 'police', 'cafe', 'atm', 'toilets'];
+let gridIndex = null;
+const gridCells = {};
+export async function fetchGrid(lat, lon) {
+  if (!gridIndex) { try { gridIndex = new Set(await getJSON('./data/grid/index.json')); } catch { return null; } }
+  const cy = Math.floor(lat / GRID), cx = Math.floor(lon / GRID), keys = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (gridIndex.has(`${cy + dy}_${cx + dx}`)) keys.push(`${cy + dy}_${cx + dx}`);
+  const parts = await Promise.all(keys.map((k) => gridCells[k] || (gridCells[k] = getJSON(`./data/grid/${k}.json`).catch(() => { delete gridCells[k]; return null; }))));
+  if (keys.length && parts.every((p) => !p)) return null;
+  const v = { grid: true };
+  for (const kind of KINDS) v[kind] = parts.flatMap((p) => (p && p[kind]) || []).map(expand);
+  return v;
+}
+
 export async function fetchPlaces(cityId) {
   if (placeFiles[cityId]) return placeFiles[cityId];
   try {

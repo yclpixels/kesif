@@ -24,6 +24,9 @@ anything the whole team must know here, not in a personal chat.
   `js/api.js` — weather, prayer, place files, live lookups. `sw.js` — offline cache.
 - Map: MapLibre GL + OpenFreeMap. Routing: routing.openstreetmap.de (OSRM). Search: Photon.
   Place files `data/places-<city>.json` are built by `tools/` from Geofabrik OpenStreetMap extracts.
+- Anywhere in Türkiye: `data/tr-admin.json` lists the 81 provinces and 973 districts (from OpenStreetMap
+  boundaries). `data/grid/<y>_<x>.json` holds places for 0.25° squares of the whole country, built by
+  `tools/build_grid.py`; the app loads the 3×3 squares around the visitor or the picked district.
 - Character ids (used for file names everywhere): `pusula`, `lale`, `cini`, `simit`, `marti`, `kedi`.
   Costume ids: `scarf`, `fez`, `hat`, `cape`.
 

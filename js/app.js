@@ -1,6 +1,6 @@
 import { CITIES, NEARBY, EVENTS, CHECKED, CHECKIN_RADIUS } from './data.js';
 import { STOP_INFO } from './stops-info.js';
-import { fetchWeather, fetchPrayer, fetchPlaces, fetchPlacesLive, fetchWikiStops, distanceM, getPosition } from './api.js';
+import { fetchWeather, fetchPrayer, fetchPlaces, fetchGrid, fetchPlacesLive, fetchWikiStops, distanceM, getPosition } from './api.js';
 import { t, LANGS, pickLang, weatherText, PHRASES_TR } from './i18n.js';
 import * as G from './game.js';
 import { mascot, setArt, hasArt, artModel, artImage } from './mascot.js';
@@ -19,6 +19,7 @@ const store = {
 const state = {
   lang: pickLang(),
   city: store.get('city', 'istanbul'),
+  place: store.get('place', null), // a province or district picked from the list: { n, p, lat, lon }
   tab: 'map',           // map | quests | collection | profile
   page: null,           // fare | cal | sos | pray | stop
   stopId: null,
@@ -34,7 +35,10 @@ const city = () => (state.city === 'nearby' ? NEARBY : CITIES[state.city]);
 const cityName = (c = city()) => c.name[state.lang] || c.name.en;
 // Where to look: the visitor, else the city pack's centre, else the last place we saw them, else Istanbul.
 // A city chosen by hand wins over a real position far away (you can browse Antalya from Ankara).
-const here = () => (state.pos && !(state.manualCity && city().center && distanceM(state.pos, city().center) > 60000) ? state.pos : null) || city().center || store.get('lastPos', null) || CITIES.istanbul.center;
+const chosen = () => state.place || city().center;
+const here = () => (state.pos && !(state.manualCity && chosen() && distanceM(state.pos, chosen()) > (state.place ? 25000 : 60000)) ? state.pos : null) || state.place || city().center || store.get('lastPos', null) || CITIES.istanbul.center;
+// What the map pill says: the picked district or province, else the city pack.
+const placeName = () => (state.place ? state.place.n : cityName());
 const nf = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : state.lang);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 // Open the place itself (its page with hours, reviews, phone), not just a dropped pin.
@@ -74,7 +78,9 @@ async function loadLive() {
   const set = (k) => (v) => { if (run === loadRun) { state[k] = v; onData(); } return v; };
   const nearby = state.city === 'nearby';
   // City packs ship their places; anywhere else (or if the file is missing) ask OpenStreetMap live.
-  const places = (nearby ? Promise.resolve(null) : fetchPlaces(state.city)).then((v) => v || fetchPlacesLive(h.lat, h.lon));
+  // City packs cover their centre; a district further out, Near me and everywhere else use the squares of all Türkiye.
+  const usePack = !nearby && !(state.place && distanceM(state.place, city().center) > 12000);
+  const places = (usePack ? fetchPlaces(state.city) : Promise.resolve(null)).then((v) => v || fetchGrid(h.lat, h.lon)).then((v) => v || fetchPlacesLive(h.lat, h.lon));
   const stops = nearby ? fetchWikiStops(h.lat, h.lon, state.lang).then((list) => { if (run === loadRun) { NEARBY.stamps = list; onData(); } }) : Promise.resolve();
   await Promise.all([fetchWeather(h.lat, h.lon).then(set('weather')), fetchPrayer(h.lat, h.lon).then(set('prayer')), places.then(set('places')), stops]);
   if (run === loadRun) { state.loading = false; onData(); }
@@ -88,6 +94,7 @@ function onData() {
 // Inside a city pack's area use the pack; anywhere else in Türkiye switch to "Near me".
 function pickCityFor(p) {
   store.set('lastPos', { lat: p.lat, lon: p.lon });
+  if (state.place) { state.place = null; store.set('place', null); }
   let best = null;
   for (const c of Object.values(CITIES)) { const d = distanceM(p, c.center); if (d < 60000 && (!best || d < best.d)) best = { id: c.id, d }; }
   const want = best ? best.id : 'nearby';
@@ -394,7 +401,7 @@ function renderMapChrome() {
   $('map-top').innerHTML = `
     <div class="map-row">
       ${playerChip()}
-      <div class="map-info"><button type="button" id="city-toggle">${esc(cityName())} ▾</button><i></i><button type="button" data-page="wx">${wx ? esc(wx.temp) + '°' : '–'}</button></div>
+      <div class="map-info"><button type="button" id="city-toggle">${esc(placeName())} ▾</button><i></i><button type="button" data-page="wx">${wx ? esc(wx.temp) + '°' : '–'}</button></div>
       <button type="button" class="round tools-btn" id="tools-btn" aria-label="${esc(T('tools'))}">${ico('grid')}</button>
     </div>`;
   // Bottom right: find me and camera, stacked like Apple Maps. A banner only when there is something to do here.
@@ -1058,7 +1065,7 @@ function renderWx() {
   if (!wx || !wx.hours) return `${backHead(T('weather'))}<p class="muted pad">${esc(T('loading'))}</p>`;
   const day = (t, i) => (i === 0 ? T('today') : new Date(t + 'T12:00:00').toLocaleDateString(loc, { weekday: 'long' }));
   const tip = wx.days[0].uv >= 7 ? T('wx_uv') : wx.days[0].rain >= 60 ? T('wx_rain') : wx.temp >= 30 ? T('wx_hot') : wx.temp <= 5 ? T('wx_cold') : '';
-  return `${backHead(T('weather') + ' · ' + cityName())}
+  return `${backHead(T('weather') + ' · ' + placeName())}
   <section class="panel wx-now"><span class="wx-big" aria-hidden="true">${WX_ICON(wx.code)}</span><div><b>${wx.temp}°</b><small>${esc(weatherText(state.lang, wx.code))} · ${esc(T('wx_feels', { n: wx.feels }))}</small><small>${esc(T('wx_wind', { n: wx.wind }))} · ${esc(T('wx_hum', { n: wx.hum }))}</small></div></section>
   ${tip ? `<p class="note">${esc(tip)}</p>` : ''}
   <section class="panel"><h2>${esc(T('wx_hours'))}</h2><div class="wx-hours">${wx.hours.map((h, i) => `<div><small>${i === 0 ? esc(T('now')) : h.t}</small><span aria-hidden="true">${WX_ICON(h.code)}</span><b>${h.temp}°</b>${h.rain >= 20 ? `<em>${h.rain}%</em>` : '<em></em>'}</div>`).join('')}</div></section>
@@ -1272,15 +1279,67 @@ function renderAll() { document.documentElement.lang = state.lang; if ($('mq')) 
 
 function openStop(id) { state.stopId = id; state.page = 'stop'; renderView(); $('view').scrollTop = 0; }
 function goTab(tab) { state.tab = tab; state.page = null; renderNav(); renderView(); $('view').scrollTop = 0; }
-function openCityPicker() {
-  const opt = (id, name, sub, n, total) => `<li><button type="button" data-city="${id}" aria-pressed="${id === state.city}">${ico(id === 'nearby' ? 'locate' : 'map')}<span><b>${esc(name)}</b><small>${esc(sub)}</small></span>${total ? `<em>${n} / ${total}</em>` : ''}</button></li>`;
+// Where are you? Near me, the 15 stamp packs, and all 81 provinces with their 973 districts (searchable).
+let ADMIN = null;
+const loadAdmin = async () => ADMIN || (ADMIN = await fetch('./data/tr-admin.json').then((r) => r.json()).catch(() => []));
+const packNear = (p) => Object.values(CITIES).find((c) => distanceM(p, c.center) < 60000);
+async function openCityPicker(view = null) {
+  const admin = await loadAdmin();
+  const cur = state.place;
+  const row = (attrs, icon, name, sub, on, right = '') => `<li><button type="button" ${attrs} aria-pressed="${!!on}">${ico(icon)}<span><b>${esc(name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>${right}</button></li>`;
+  const provRow = (p, i) => row(`data-prov="${i}"`, 'map', p.n, T('n_districts', { n: p.d.length }) + (packNear({ lat: p.a, lon: p.o }) ? ' · ' + T('has_pack') : ''), cur && cur.p === p.n, '<b class="chev">›</b>');
+  let body;
+  if (view && view.prov != null) {
+    const p = admin[view.prov];
+    body = `<button type="button" class="link-back" data-prov-back>‹ ${esc(T('all_provinces'))}</button>
+      <h3 class="prov-title">${esc(p.n)}</h3>
+      <ul class="cities">${row(`data-place="${view.prov}:-1"`, 'pin', T('centre_of', { name: p.n }), '', cur && cur.p === p.n && cur.n === p.n)}
+      ${p.d.map((d, j) => row(`data-place="${view.prov}:${j}"`, 'pin', d[0], '', cur && cur.p === p.n && cur.n === d[0])).join('')}</ul>`;
+  } else {
+    const packs = Object.values(CITIES).map((c) => row(`data-city="${c.id}"`, 'collection', cityName(c), c.center.label, !cur && c.id === state.city, `<em>${G.stampCount(c.id)} / ${c.stamps.length}</em>`)).join('');
+    body = `<input id="cq" class="cq" type="search" autocomplete="off" placeholder="${esc(T('city_search'))}" aria-label="${esc(T('city_search'))}">
+      <ul class="cities" id="clist">${row('data-city="nearby"', 'locate', NEARBY.name[state.lang] || NEARBY.name.en, T('near_sub'), !cur && state.city === 'nearby')}
+      <li class="chead">${esc(T('packs_title'))}</li>${packs}
+      <li class="chead">${esc(T('all_provinces'))}</li>${admin.map(provRow).join('')}</ul>`;
+  }
   $('tools-title').textContent = T('city_pick');
-  $('tools-body').innerHTML = `<ul class="cities">${opt('nearby', NEARBY.name[state.lang] || NEARBY.name.en, T('near_sub'), 0, 0)}${Object.values(CITIES).map((c) => opt(c.id, cityName(c), c.center.label, G.stampCount(c.id), c.stamps.length)).join('')}</ul>`;
+  $('tools-body').innerHTML = body;
   $('tools-sheet').hidden = false;
+  $('tools-body').scrollTop = 0;
+  const q = $('cq');
+  if (q) q.addEventListener('input', () => {
+    const f = fold(q.value).trim();
+    if (!f) { openCityPicker(); return; }
+    const hits = [];
+    admin.forEach((p, i) => {
+      if (fold(p.n).startsWith(f)) hits.push([0, row(`data-prov="${i}"`, 'map', p.n, T('n_districts', { n: p.d.length }), false, '<b class="chev">›</b>')]);
+      p.d.forEach((d, j) => { const fd = fold(d[0]); if (fd.startsWith(f) || (f.length > 2 && fd.includes(f))) hits.push([fd.startsWith(f) ? 1 : 2, row(`data-place="${i}:${j}"`, 'pin', d[0], p.n, false)]); });
+    });
+    hits.sort((a, b) => a[0] - b[0]);
+    $('clist').innerHTML = hits.length ? hits.slice(0, 50).map((h) => h[1]).join('') : `<li class="chead">${esc(T('none'))}</li>`;
+  });
+}
+// A province or district from the list: use its city pack when one is close, else "anywhere" mode.
+function setPlace(prov, dist) {
+  const p = ADMIN[prov]; if (!p) return;
+  const d = dist >= 0 ? p.d[dist] : null;
+  const place = d ? { n: d[0], p: p.n, lat: d[1], lon: d[2] } : { n: p.n, p: p.n, lat: p.a, lon: p.o };
+  const pack = packNear(place);
+  $('tools-sheet').hidden = true;
+  state.place = place; store.set('place', place);
+  state.city = pack ? pack.id : 'nearby'; store.set('city', state.city);
+  NEARBY.stamps = [];
+  clearLines();
+  state.manualCity = true;
+  state.weather = state.prayer = state.places = null;
+  centerMap(); renderAll(); loadLive();
 }
 function setCity(id) {
   $('tools-sheet').hidden = true;
-  if (id === state.city) return;
+  const hadPlace = !!state.place;
+  state.place = null; store.set('place', null);
+  if (id === 'nearby') { state.city = 'nearby'; store.set('city', 'nearby'); NEARBY.stamps = []; state.places = null; locate(); return; }
+  if (id === state.city && !hadPlace) return;
   state.city = id; store.set('city', id);
   if (id !== 'nearby') NEARBY.stamps = [];
   clearLines();
@@ -1294,9 +1353,12 @@ function init() {
   fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.say) sayTr(el.dataset.say);
+    if (el.dataset.prov) openCityPicker({ prov: +el.dataset.prov });
+    else if (el.hasAttribute('data-prov-back')) openCityPicker();
+    else if (el.dataset.place) { const [a, b] = el.dataset.place.split(':').map(Number); setPlace(a, b); }
+    else if (el.dataset.say) sayTr(el.dataset.say);
     else if (el.dataset.big) showBig(el.dataset.big);
     else if (el.hasAttribute('data-share')) sharePlace(state.cardPlace);
     else if (el.dataset.quick) { $('mq').value = T(el.dataset.quick); onSearchInput($('mq').value); $('mq').focus(); }
