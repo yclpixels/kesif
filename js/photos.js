@@ -383,5 +383,179 @@ export const PHOTOS = {
   "page": "https://commons.wikimedia.org/wiki/File:Safranbolu_Old_Government_Building_and_Clock_Tower.jpg",
   "by": "Uğur Başak",
   "lic": "CC BY-SA 3.0"
+ },
+ "ko_mevlana": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Mevlana_M%C3%BCzesi_01.jpg/960px-Mevlana_M%C3%BCzesi_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Mevlana_M%C3%BCzesi_01.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ko_selimiye": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2a/J22_169_Konya%2C_Selimiye_Camii.jpg/960px-J22_169_Konya%2C_Selimiye_Camii.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:J22_169_Konya,_Selimiye_Camii.jpg",
+  "by": "Falk2",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ko_aziziye": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Aziziye_Mosque%2C_Konya%2C_Turkey.jpg/960px-Aziziye_Mosque%2C_Konya%2C_Turkey.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Aziziye_Mosque,_Konya,_Turkey.jpg",
+  "by": "Nedim Ardoğa / Nedim Ardoğa at en.wikipedia",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ko_alaaddin": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Al%C3%A2eddin_Mosque%2C_Konya_02.jpg/960px-Al%C3%A2eddin_Mosque%2C_Konya_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Al%C3%A2eddin_Mosque,_Konya_02.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ko_sircali": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Konya_S%C4%B1r%C3%A7al%C4%B1_Medrese_gravestone_museum_4490.jpg/960px-Konya_S%C4%B1r%C3%A7al%C4%B1_Medrese_gravestone_museum_4490.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Konya_S%C4%B1r%C3%A7al%C4%B1_Medrese_gravestone_museum_4490.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ko_ince": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/Ince_Minareli_Medrese_01.jpg/960px-Ince_Minareli_Medrese_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Ince_Minareli_Medrese_01.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ga_kale": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Gaziantep_Castle_in_2018.jpg/960px-Gaziantep_Castle_in_2018.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Gaziantep_Castle_in_2018.jpg",
+  "by": "William John Gauthier",
+  "lic": "CC BY-SA 2.0"
+ },
+ "ga_zincirli": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Zincirli_Bedesten_Gaziantep_T%C3%9CRK%C4%B0YE_-_panoramio.jpg/960px-Zincirli_Bedesten_Gaziantep_T%C3%9CRK%C4%B0YE_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Zincirli_Bedesten_Gaziantep_T%C3%9CRK%C4%B0YE_-_panoramio.jpg",
+  "by": "Emin Başar ÖZDEMİR",
+  "lic": "CC BY 3.0"
+ },
+ "ga_bakircilar": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Gaziantep_bakircilar_carsisi_usta.jpg/960px-Gaziantep_bakircilar_carsisi_usta.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Gaziantep_bakircilar_carsisi_usta.jpg",
+  "by": "Erhanaydin6428",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ga_tahmis": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/44/Tahmis_Kahvesi.jpg/960px-Tahmis_Kahvesi.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Tahmis_Kahvesi.jpg",
+  "by": "Alarakula",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ga_kurtulus": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ac/Gaziantep_Kurtulu%C5%9F_Mosque_in_2007_0423.jpg/960px-Gaziantep_Kurtulu%C5%9F_Mosque_in_2007_0423.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Gaziantep_Kurtulu%C5%9F_Mosque_in_2007_0423.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ga_zeugma": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/The_Oceanus_and_Tethys_Mosaic.jpg/960px-The_Oceanus_and_Tethys_Mosaic.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:The_Oceanus_and_Tethys_Mosaic.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "su_balikli": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Bal%C4%B1kl%C4%B1g%C3%B6l%2C_Urfa_2015.jpg/960px-Bal%C4%B1kl%C4%B1g%C3%B6l%2C_Urfa_2015.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Bal%C4%B1kl%C4%B1g%C3%B6l,_Urfa_2015.jpg",
+  "by": "Hamdigumus",
+  "lic": "CC0"
+ },
+ "su_rizvaniye": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Rizvaniye_Mosque_03.jpg/960px-Rizvaniye_Mosque_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Rizvaniye_Mosque_03.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "su_mevlid": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a7/Mevlid-i_Halil_Mosque_01.jpg/960px-Mevlid-i_Halil_Mosque_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Mevlid-i_Halil_Mosque_01.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "su_kale": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/43/Urfa_Castle_03.jpg/960px-Urfa_Castle_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Urfa_Castle_03.jpg",
+  "by": "Bernard Gagnon",
+  "lic": "CC BY-SA 3.0"
+ },
+ "su_gumruk": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/%C5%9Eanl%C4%B1urfa_G%C3%BCmr%C3%BCk_Han%C4%B1_3970.jpg/960px-%C5%9Eanl%C4%B1urfa_G%C3%BCmr%C3%BCk_Han%C4%B1_3970.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:%C5%9Eanl%C4%B1urfa_G%C3%BCmr%C3%BCk_Han%C4%B1_3970.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "su_haleplibahce": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a6/Urfa_Haleplibah%C3%A7e_Mosaic_Museum_Name_unclear_mosaic_5170.jpg/960px-Urfa_Haleplibah%C3%A7e_Mosaic_Museum_Name_unclear_mosaic_5170.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Urfa_Haleplibah%C3%A7e_Mosaic_Museum_Name_unclear_mosaic_5170.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "su_gobekli": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/G%C3%B6bekli_Tepe%2C_Urfa.jpg/960px-G%C3%B6bekli_Tepe%2C_Urfa.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:G%C3%B6bekli_Tepe,_Urfa.jpg",
+  "by": "Teomancimit",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ed_selimiye": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f4/Edirne_Selimiye_Mosque_Exterior_South_side_037.jpg/960px-Edirne_Selimiye_Mosque_Exterior_South_side_037.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Edirne_Selimiye_Mosque_Exterior_South_side_037.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ed_rustem": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/R%C3%BCstem_Pa%C5%9Fa_Kervansaray%C4%B1%2C_Edirne%2C_23.JPG/960px-R%C3%BCstem_Pa%C5%9Fa_Kervansaray%C4%B1%2C_Edirne%2C_23.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:R%C3%BCstem_Pa%C5%9Fa_Kervansaray%C4%B1,_Edirne,_23.JPG",
+  "by": "Sadrettin",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ed_alipasa": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/24/Ali_Pasha_Bazaar_Edirne%2C_Turkey_-_51973552011.jpg/960px-Ali_Pasha_Bazaar_Edirne%2C_Turkey_-_51973552011.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Ali_Pasha_Bazaar_Edirne,_Turkey_-_51973552011.jpg",
+  "by": "Sharon Hahn Darlin",
+  "lic": "CC BY 2.0"
+ },
+ "ed_meric": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Meri%C3%A7BridgeEdirne.JPG/960px-Meri%C3%A7BridgeEdirne.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Meri%C3%A7BridgeEdirne.JPG",
+  "by": "CeeGee",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ed_bayezid": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/20120913_Bayezid_II_Kulliye_Edirne_Turkey.jpg/960px-20120913_Bayezid_II_Kulliye_Edirne_Turkey.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:20120913_Bayezid_II_Kulliye_Edirne_Turkey.jpg",
+  "by": "Ggia",
+  "lic": "CC BY-SA 4.0"
+ },
+ "ca_saat": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3f/%C3%87anakkale%2C_Turkey_-_Clock_Tower_and_Plaza_March_2022.jpg/960px-%C3%87anakkale%2C_Turkey_-_Clock_Tower_and_Plaza_March_2022.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:%C3%87anakkale,_Turkey_-_Clock_Tower_and_Plaza_March_2022.jpg",
+  "by": "Sharon Hahn Darlin",
+  "lic": "CC BY 2.0"
+ },
+ "ca_at": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b2/%C3%87anakkale%2C_Turkey_-_Plaza_with_Trojan_Horse.jpg/960px-%C3%87anakkale%2C_Turkey_-_Plaza_with_Trojan_Horse.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:%C3%87anakkale,_Turkey_-_Plaza_with_Trojan_Horse.jpg",
+  "by": "Sharon Hahn Darlin",
+  "lic": "CC BY 2.0"
+ },
+ "ca_aynali": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/13/Aynal%C4%B1_%C3%87ar%C5%9F%C4%B1_2.JPG/960px-Aynal%C4%B1_%C3%87ar%C5%9F%C4%B1_2.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Aynal%C4%B1_%C3%87ar%C5%9F%C4%B1_2.JPG",
+  "by": "Bahar",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ca_cimenlik": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/00/%C3%87anakkale%2C_Turkey._Cimenlik_Castle%2C_now_military_museum_-_panoramio.jpg/960px-%C3%87anakkale%2C_Turkey._Cimenlik_Castle%2C_now_military_museum_-_panoramio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:%C3%87anakkale,_Turkey._Cimenlik_Castle,_now_military_museum_-_panoramio.jpg",
+  "by": "Maarten Sepp",
+  "lic": "CC BY-SA 3.0"
+ },
+ "ca_troymuze": {
+  "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0d/Troy_Museum_9913.jpg/960px-Troy_Museum_9913.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "page": "https://commons.wikimedia.org/wiki/File:Troy_Museum_9913.jpg",
+  "by": "Dosseman",
+  "lic": "CC BY-SA 4.0"
  }
 };

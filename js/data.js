@@ -315,6 +315,140 @@ export const CITIES = {
     ],
     embassy: 'emb_any',
     tip: 'tip_any'
+  },
+  konya: {
+    id: 'konya',
+    name: { en: "Konya", tr: "Konya", de: "Konya", ru: "Конья" },
+    center: { lat: 37.871, lon: 32.5057, label: "Mevlâna" },
+    taxi: {
+      open: 55, perKm: 50, min: 200,
+      note: "Konya 2026 (news sites)",
+      routes: [
+        ["Konya Airport → Mevlâna", 18],
+        ["Konya bus terminal → Mevlâna", 10],
+        ["Mevlâna → Alaaddin Hill", 1.5]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'ko_mevlana', name: "Mevlâna Museum", lat: 37.871, lon: 32.5057 },
+      { id: 'ko_selimiye', name: "Selimiye Mosque", lat: 37.8704, lon: 32.5041 },
+      { id: 'ko_aziziye', name: "Aziziye Mosque", lat: 37.87, lon: 32.5008 },
+      { id: 'ko_sircali', name: "Sırçalı Madrasa", lat: 37.87, lon: 32.4941 },
+      { id: 'ko_alaaddin', name: "Alaeddin Mosque", lat: 37.8734, lon: 32.4928 },
+      { id: 'ko_ince', name: "İnce Minareli Madrasa", lat: 37.8729, lon: 32.49 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  gaziantep: {
+    id: 'gaziantep',
+    name: { en: "Gaziantep", tr: "Gaziantep", de: "Gaziantep", ru: "Газиантеп" },
+    center: { lat: 37.0665, lon: 37.3832, label: "Kale" },
+    taxi: {
+      open: 50, perKm: 50, min: 200,
+      note: "Gaziantep 2026 (news sites)",
+      routes: [
+        ["Gaziantep Airport → castle", 20],
+        ["Castle → Zeugma Mosaic Museum", 1.5],
+        ["Castle → Kurtuluş Mosque", 1.2]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'ga_kale', name: "Gaziantep Castle", lat: 37.0665, lon: 37.3832 },
+      { id: 'ga_zincirli', name: "Zincirli Bedesten", lat: 37.063, lon: 37.3855 },
+      { id: 'ga_bakircilar', name: "Coppersmiths Bazaar", lat: 37.0623, lon: 37.3864 },
+      { id: 'ga_tahmis', name: "Tahmis Coffeehouse", lat: 37.0612, lon: 37.3877 },
+      { id: 'ga_kurtulus', name: "Kurtuluş Mosque", lat: 37.0602, lon: 37.3756 },
+      { id: 'ga_zeugma', name: "Zeugma Mosaic Museum", lat: 37.0756, lon: 37.3856 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  sanliurfa: {
+    id: 'sanliurfa',
+    name: { en: "Şanlıurfa", tr: "Şanlıurfa", de: "Şanlıurfa", ru: "Шанлыурфа" },
+    center: { lat: 37.1477, lon: 38.7846, label: "Balıklıgöl" },
+    taxi: {
+      open: 52, perKm: 50, min: 200, estimate: true,
+      note: "Sources disagree: estimate",
+      routes: [
+        ["GAP Airport → Balıklıgöl", 40],
+        ["Balıklıgöl → Archaeology Museum", 1.5],
+        ["Balıklıgöl → Göbekli Tepe", 18]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'su_balikli', name: "Balıklıgöl", lat: 37.1477, lon: 38.7846 },
+      { id: 'su_rizvaniye', name: "Rızvaniye Mosque", lat: 37.1478, lon: 38.7849 },
+      { id: 'su_mevlid', name: "Mevlid-i Halil Mosque", lat: 37.1467, lon: 38.7865 },
+      { id: 'su_kale', name: "Urfa Castle", lat: 37.1455, lon: 38.784 },
+      { id: 'su_gumruk', name: "Gümrük Han", lat: 37.1489, lon: 38.7886 },
+      { id: 'su_haleplibahce', name: "Haleplibahçe Mosaic Museum", lat: 37.1509, lon: 38.7825 },
+      { id: 'su_muze', name: "Şanlıurfa Archaeology Museum", lat: 37.1537, lon: 38.7823 },
+      { id: 'su_gobekli', name: "Göbekli Tepe", lat: 37.2239, lon: 38.9221 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  edirne: {
+    id: 'edirne',
+    name: { en: "Edirne", tr: "Edirne", de: "Edirne", ru: "Эдирне" },
+    center: { lat: 41.6781, lon: 26.5593, label: "Selimiye" },
+    taxi: {
+      open: 52, perKm: 50, min: 200, estimate: true,
+      note: "Sources disagree: estimate",
+      routes: [
+        ["Bus terminal → Selimiye", 5],
+        ["Selimiye → Meriç Bridge", 2],
+        ["Selimiye → Bayezid II Complex", 2.5]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'ed_selimiye', name: "Selimiye Mosque", lat: 41.6781, lon: 26.5593 },
+      { id: 'ed_eski', name: "Old Mosque", lat: 41.6766, lon: 26.5559 },
+      { id: 'ed_uc', name: "Üç Şerefeli Mosque", lat: 41.6785, lon: 26.553 },
+      { id: 'ed_rustem', name: "Rüstem Paşa Caravanserai", lat: 41.6756, lon: 26.555 },
+      { id: 'ed_alipasa', name: "Ali Paşa Bazaar", lat: 41.6756, lon: 26.5527 },
+      { id: 'ed_sinagog', name: "Great Synagogue", lat: 41.6716, lon: 26.5516 },
+      { id: 'ed_meric', name: "Meriç Bridge", lat: 41.6634, lon: 26.5521 },
+      { id: 'ed_bayezid', name: "Bayezid II Complex", lat: 41.6854, lon: 26.543 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
+  },
+  canakkale: {
+    id: 'canakkale',
+    name: { en: "Çanakkale", tr: "Çanakkale", de: "Çanakkale", ru: "Чанаккале" },
+    center: { lat: 40.1497, lon: 26.4021, label: "Saat Kulesi" },
+    taxi: {
+      open: 100, perKm: 50, min: 200,
+      note: "Çanakkale 2026 (news sites)",
+      routes: [
+        ["Çanakkale Airport → clock tower", 3],
+        ["Clock tower → Troy", 30],
+        ["Ferry pier → clock tower", 0.5]
+      ]
+    },
+    card: '',
+    transit: [],
+    stamps: [
+      { id: 'ca_saat', name: "Clock Tower", lat: 40.1497, lon: 26.4021 },
+      { id: 'ca_aynali', name: "Aynalı Bazaar", lat: 40.1463, lon: 26.4037 },
+      { id: 'ca_cimenlik', name: "Çimenlik Castle", lat: 40.1463, lon: 26.3991 },
+      { id: 'ca_at', name: "Trojan Horse", lat: 40.1521, lon: 26.4055 },
+      { id: 'ca_troymuze', name: "Troy Museum", lat: 39.9553, lon: 26.2493 },
+      { id: 'ca_troia', name: "Ancient Troy", lat: 39.9571, lon: 26.2405 }
+    ],
+    embassy: 'emb_any',
+    tip: 'tip_any'
   }
 };
 

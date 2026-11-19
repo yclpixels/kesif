@@ -1,6 +1,6 @@
 # Keşif
 
-*Keşfet. Topla. Geliş.* Türkiye'yi oyuna çeviren web uygulaması. İstanbul, Ankara, İzmir, Antalya, Kapadokya, Bursa, Eskişehir, Trabzon, Mardin ve Safranbolu için hazırlanmış şehir paketleri var; bunların dışında "Yakınım" modu damga duraklarını Wikipedia'dan, restoran, ibadet yeri ve hastaneleri OpenStreetMap'ten canlı bulur. Ziyaretçi gerçek yerlere gidip damga toplar, XP kazanır, seviye atlar, karakter ve rozet açar. Yanında taksi ücreti, namaz vakitleri, bayram takvimi ve acil durum araçları var. Telefona "Ana ekrana ekle" ile uygulama gibi kurulur.
+*Keşfet. Topla. Geliş.* Türkiye'yi oyuna çeviren web uygulaması. 15 şehir paketi var (İstanbul, Ankara, İzmir, Antalya, Kapadokya, Bursa, Eskişehir, Trabzon, Mardin, Safranbolu, Konya, Gaziantep, Şanlıurfa, Edirne, Çanakkale; 109 damga durağı); bunların dışında "Yakınım" modu damga duraklarını Wikipedia'dan, restoran, ibadet yeri ve hastaneleri OpenStreetMap'ten canlı bulur. Ziyaretçi gerçek yerlere gidip damga toplar, XP kazanır, seviye atlar, karakter ve rozet açar. Yanında taksi ücreti, namaz vakitleri, bayram takvimi ve acil durum araçları var. Telefona "Ana ekrana ekle" ile uygulama gibi kurulur.
 
 ## Ekranlar
 
