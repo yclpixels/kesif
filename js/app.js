@@ -317,32 +317,59 @@ let map, markers = [];
 function initMap() {
   if (!window.maplibregl) { $('map').innerHTML = `<p class="map-fallback">${esc(T('offline'))}</p>`; return; }
   map = new maplibregl.Map({
-    container: 'map', style: MAP_STYLE, center: [here().lon, here().lat], zoom: 16.2, pitch: 58, bearing: -18,
+    container: 'map', style: MAP_STYLE, center: [here().lon, here().lat], zoom: 16.2, pitch: 45, bearing: 0,
     attributionControl: false, maxPitch: 70
   });
   // Credit line is drawn by us in index.html (#map-credit) so it stays one small, quiet line.
   map.on('style.load', () => { tintMap(); applyTheme(); });
 }
 // Recolour the base style toward Apple Maps.
+// The map's look, close to Apple Maps: one palette for day and one for night, applied layer by layer.
+// Day: warm light ground, white streets with soft grey edges, yellow main roads, orange motorways,
+// sky-blue water, soft green parks, pale buildings. Night: Apple's dark map with warm main roads.
+const MAP_PALETTE = {
+  light: { bg: '#f5f3ee', resid: '#efede7', park: '#cfe8bf', wood: '#c3e2b0', water: '#a5d4f7', sand: '#f2ead3', hospital: '#f8e2e2', school: '#efe9da', aero: '#e7e5e0',
+    motorway: '#f8c35c', motorwayCase: '#dca34a', major: '#fde6a3', majorCase: '#e7cf8c', street: '#ffffff', streetCase: '#dcd8d0', path: '#ffffff', rail: '#c9c6bf',
+    bldg: '#e6e3de', bldg3d: ['#efedea', '#e3e0db', '#d7d3cd'], border: '#b8b4c4', label: '#3a3a3c', roadLabel: '#6e6e73', waterLabel: '#3f78ad', halo: '#ffffff' },
+  dark: { bg: '#1f2024', resid: '#232428', park: '#1d3427', wood: '#1a3123', water: '#12304e', sand: '#2e2b22', hospital: '#3a272c', school: '#2b2924', aero: '#28292d',
+    motorway: '#8f6f2f', motorwayCase: '#5e4a25', major: '#5d5848', majorCase: '#3e3b31', street: '#3a3b41', streetCase: '#28292e', path: '#34353b', rail: '#45464c',
+    bldg: '#2b2c31', bldg3d: ['#2c2d33', '#35363d', '#404149'], border: '#56576b', label: '#d6d6db', roadLabel: '#a5a5ad', waterLabel: '#86aedb', halo: '#18181b' }
+};
+function paintMap(dark) {
+  const P = MAP_PALETTE[dark ? 'dark' : 'light'];
+  const set = (id, prop, val) => { try { map.setPaintProperty(id, prop, val); } catch { /* layer differs */ } };
+  for (const l of map.getStyle().layers) {
+    const id = l.id;
+    if (/^(route|plan)/.test(id)) continue;
+    if (l.type === 'background') set(id, 'background-color', P.bg);
+    else if (l.type === 'fill') {
+      set(id, 'fill-color', /water/.test(id) ? P.water : /wood/.test(id) ? P.wood : /park|grass|pitch|track|cemetery|wetland/.test(id) ? P.park
+        : /sand/.test(id) ? P.sand : /hospital/.test(id) ? P.hospital : /school/.test(id) ? P.school : /aeroway/.test(id) ? P.aero
+        : /building/.test(id) ? P.bldg : /ice/.test(id) ? P.bg : P.resid);
+      if (/landuse_residential/.test(id)) set(id, 'fill-opacity', 1);
+    } else if (l.type === 'fill-extrusion') {
+      set(id, 'fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, P.bldg3d[0], 40, P.bldg3d[1], 100, P.bldg3d[2]]);
+      set(id, 'fill-extrusion-opacity', 0.9);
+    } else if (l.type === 'line') {
+      const cas = /casing/.test(id);
+      set(id, 'line-color', /water|river/.test(id) ? P.water : /park/.test(id) ? P.park : /boundary/.test(id) ? P.border : /rail/.test(id) ? P.rail
+        : /aeroway/.test(id) ? P.aero : /motorway/.test(id) ? (cas ? P.motorwayCase : P.motorway)
+        : /trunk|primary|secondary|tertiary|_link/.test(id) ? (cas ? P.majorCase : P.major)
+        : /path|pedestrian/.test(id) ? (cas ? P.streetCase : P.path) : cas ? P.streetCase : P.street);
+    } else if (l.type === 'symbol') {
+      set(id, 'text-color', /water/.test(id) ? P.waterLabel : /highway|road/.test(id) ? P.roadLabel : P.label);
+      set(id, 'text-halo-color', P.halo);
+    }
+  }
+}
 function tintMap() {
-  const set = (id, prop, val) => { if (map.getLayer(id)) try { map.setPaintProperty(id, prop, val); } catch { /* layer differs */ } };
-  // Apple Maps palette: pale grey ground, white-grey buildings, clear blue water, soft green parks.
-  set('building-3d', 'fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, '#f2f1f4', 40, '#e4e2ea', 100, '#d6d3df']);
-  set('building-3d', 'fill-extrusion-opacity', 0.95);
-  set('water', 'fill-color', '#9fd3f5');
-  set('park', 'fill-color', '#c4e8b4');
-  set('landcover_grass', 'fill-color', '#cdeebd');
-  set('landcover_wood', 'fill-color', '#b6e0a4');
-  set('background', 'background-color', '#f5f4f2');
   // Hide the base style's own point icons so only Keşif pins remain, like a clean Apple Maps view.
-  for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi|transit|railway|aerialway/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+  for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi|transit|railway|aerialway|shield|one_way/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
   // Striped pedestrian-area patterns look noisy on a phone: plain ground instead.
   for (const l of map.getStyle().layers) if (l.type === 'fill' && l.paint && l.paint['fill-pattern']) map.setLayoutProperty(l.id, 'visibility', 'none');
+  mapDark = null; // paint again for the current time of day
 }
-// Night map: dark like Apple Maps after sunset (or by choice in Profile). The light palette is remembered
-// from the style itself so switching back is exact.
-const DARK = { bg: '#1b1b25', water: '#1a3550', park: '#1f3a2c', building: ['#2e2e3e', '#3a3a4d', '#47475c'], road: '#3c3c4c', roadMajor: '#55556a', casing: '#22222e', label: '#d6d6e2', halo: '#15151d' };
-let lightPaint = null, mapDark = null;
+let mapDark = null;
 function wantDark() {
   const pref = store.get('mapTheme', 'auto');
   if (pref !== 'auto') return pref === 'dark';
@@ -357,25 +384,10 @@ function applyTheme() {
   if (dark === mapDark) return;
   mapDark = dark;
   document.body.classList.toggle('map-dark', dark);
-  if (!lightPaint) {
-    lightPaint = [];
-    for (const l of layers) for (const prop of ['background-color', 'fill-color', 'fill-extrusion-color', 'line-color', 'text-color', 'text-halo-color']) {
-      try { const v = map.getPaintProperty(l.id, prop); if (v !== undefined) lightPaint.push([l.id, prop, v]); } catch { /* not this type */ }
-    }
-  }
-  const set = (id, prop, val) => { try { map.setPaintProperty(id, prop, val); } catch { /* layer differs */ } };
-  if (!dark) { for (const [id, prop, v] of lightPaint) set(id, prop, v); return; }
-  for (const l of layers) {
-    const id = l.id;
-    if (l.type === 'background') set(id, 'background-color', DARK.bg);
-    else if (l.type === 'fill') set(id, 'fill-color', /water/.test(id) ? DARK.water : /park|grass|wood|landcover/.test(id) ? DARK.park : DARK.bg);
-    else if (l.type === 'fill-extrusion') set(id, 'fill-extrusion-color', ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, DARK.building[0], 40, DARK.building[1], 100, DARK.building[2]]);
-    else if (l.type === 'line' && !/^(route|plan)/.test(id)) set(id, 'line-color', /water|river/.test(id) ? DARK.water : /casing/.test(id) ? DARK.casing : /motorway|trunk|primary|major/.test(id) ? DARK.roadMajor : /boundary|admin/.test(id) ? '#4a4a60' : DARK.road);
-    else if (l.type === 'symbol') { set(id, 'text-color', DARK.label); set(id, 'text-halo-color', DARK.halo); }
-  }
+  paintMap(dark);
 }
 
-function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: 58, duration: 800 }); }
+function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: 45, duration: 800 }); }
 
 function addMarker(lat, lon, html, { onClick, popupHtml, z = 0, label = '' } = {}) {
   const el = document.createElement('div');
@@ -930,7 +942,7 @@ function endNav(silent) {
   $('nav-top').hidden = $('nav-bottom').hidden = true;
   try { speechSynthesis.cancel(); } catch { /* none */ }
   try { wakeLock?.release(); } catch { /* none */ } wakeLock = null;
-  if (!silent) { clearLines(); map.easeTo({ bearing: 0, pitch: 58, duration: 600 }); renderMapChrome(); }
+  if (!silent) { clearLines(); map.easeTo({ bearing: 0, pitch: 45, duration: 600 }); renderMapChrome(); }
 }
 
 // Install: Android/Chrome gives us a prompt; iPhone needs the Share menu.
