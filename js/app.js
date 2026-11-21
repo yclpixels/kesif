@@ -51,7 +51,12 @@ async function detectArea(p) {
     if (!adminIndex.has(key)) return;
     const list = adminCells[key] || (adminCells[key] = await (await fetch(`./data/admin/${key}.json`)).json());
     const hit = list.find(([, , rings]) => rings.some((r) => inRing(p, r)));
-    if (hit && state.area !== hit[1]) { state.area = hit[1]; state.areaProv = hit[0]; renderMapChrome(); }
+    if (hit && state.area !== hit[1]) {
+      state.area = hit[1]; state.areaProv = hit[0]; renderMapChrome();
+      // First time in a province or district: a little XP, and it counts toward the 81 provinces.
+      const before = G.levelInfo().level, isNewProv = !G.provinces()[hit[0]], xp = G.visitArea(hit[0], hit[1]);
+      if (xp) toast(T(isNewProv ? 'new_province' : 'new_district', { name: isNewProv ? hit[0] : hit[1], n: xp }) + (G.levelInfo().level > before ? ' · ' + T('level', { n: G.levelInfo().level }) + '!' : ''));
+    }
   } catch { /* offline: keep the city name */ }
 }
 const nf = (n) => n.toLocaleString(state.lang === 'en' ? 'en-US' : state.lang);
@@ -566,13 +571,15 @@ const MEDAL_SYM = {
   two: 'M17 15l7 3 7-3v18l-7 3-7-3zM24 18v18M17 15v18M31 15v18',
   lvl10: 'M17 14h14v6a7 7 0 0 1-14 0zM24 27v4M19 34h10M17 16h-4a4 4 0 0 0 4 6M31 16h4a4 4 0 0 1-4 6',
   photo: 'M14 19h5l2-3h6l2 3h5v13H14zM24 29a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  prov5: 'M24 12c-5 0-9 4-9 9 0 7 9 15 9 15s9-8 9-15c0-5-4-9-9-9zM24 24a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  prov20: 'M12 18l8-4 8 4 8-4v16l-8 4-8-4-8 4zM20 14v16M28 18v16',
   izm: 'M21 34h6M22 34V18h4v16M20 18h8l-4-5zM24 22h.01',
   ant: 'M13 34V20h22v14M17 34v-8a3 3 0 0 1 6 0v8M25 34v-8a3 3 0 0 1 6 0v8M12 20h24',
   kap: 'M24 12a8 8 0 0 1 8 8c0 5-5 8-6 10h-4c-1-2-6-5-6-10a8 8 0 0 1 8-8zM22 31h4v4h-4z',
   near: 'M24 13a8 8 0 0 1 8 8c0 6-8 14-8 14s-8-8-8-14a8 8 0 0 1 8-8zM24 24a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'
 };
 function medal(id, on) {
-  const hue = { first: '#f59e0b', ist: '#8b5cf6', ank: '#ef4444', market: '#f97316', faith: '#22c55e', asia: '#0ea5e9', two: '#ec4899', lvl10: '#eab308', photo: '#14b8a6', izm: '#0ea5e9', ant: '#f97316', kap: '#d97706', near: '#22c55e', city: '#ef4444' }[id] || '#8b5cf6';
+  const hue = { first: '#f59e0b', ist: '#8b5cf6', ank: '#ef4444', market: '#f97316', faith: '#22c55e', asia: '#0ea5e9', two: '#ec4899', lvl10: '#eab308', photo: '#14b8a6', izm: '#0ea5e9', ant: '#f97316', kap: '#d97706', near: '#22c55e', city: '#ef4444', prov5: '#10b981', prov20: '#6366f1' }[id] || '#8b5cf6';
   const sym = MEDAL_SYM[id] || MEDAL_SYM.first, filled = id === 'first';
   return `<svg class="medal${on ? '' : ' off'}" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 2l5 4 6-1 2 6 6 2-1 6 4 5-4 5 1 6-6 2-2 6-6-1-5 4-5-4-6 1-2-6-6-2 1-6-4-5 4-5-1-6 6-2 2-6 6 1z" fill="${on ? '#fcd34d' : '#3b3561'}"/><circle cx="24" cy="24" r="15" fill="${on ? hue : '#2a2450'}"/><path d="${sym}" fill="${filled ? (on ? '#fff' : '#4a4378') : 'none'}" stroke="${on ? '#fff' : '#4a4378'}" stroke-width="${filled ? 0 : 2.2}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
@@ -633,6 +640,12 @@ function renderProfile() {
     <div>${medal('first', true)}<small>${esc(T('st_badges'))}</small><b>${earned.length} / ${G.BADGES.length}</b></div>
     <div>${ico('quests', 'gold')}<small>${esc(T('st_quests'))}</small><b>${G.questsDone()}</b></div>
   </div>
+  <section class="panel">
+    <div class="row"><h2>${esc(T('my_provinces'))}</h2><span class="muted">${Object.keys(G.provinces()).length} / 81</span></div>
+    ${bar(Object.keys(G.provinces()).length, 81)}
+    <p class="muted">${Object.keys(G.provinces()).length ? esc(Object.entries(G.provinces()).sort((a, b) => a[1].at.localeCompare(b[1].at)).map(([n, p]) => `${n} (${Object.keys(p.d).length})`).join(' · ')) : esc(T('provinces_hint'))}</p>
+    <small class="muted">${esc(T('districts_n', { n: G.districtCount() }))}</small>
+  </section>
   <section class="panel">
     <div class="row" id="friends-sec"><h2>${esc(T('friends'))}</h2><span class="muted">${G.game().friends.length}</span></div>
     ${friendsHtml()}

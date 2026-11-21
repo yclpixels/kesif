@@ -116,8 +116,23 @@ export const BADGES = [
   // Two places with stamps: any two of the city packs, or a city pack plus a stop found nearby.
   { id: 'two', test: () => Object.keys(G.stamps).filter((c) => stampCount(c) > 0).length >= 2 },
   { id: 'photo', test: () => (G.photoLog || []).length >= 5 },
-  { id: 'lvl10', test: () => levelInfo().level >= 10 }
+  { id: 'lvl10', test: () => levelInfo().level >= 10 },
+  { id: 'prov5', test: () => Object.keys(G.provinces || {}).length >= 5 },
+  { id: 'prov20', test: () => Object.keys(G.provinces || {}).length >= 20 }
 ];
+/* ---------- provinces and districts you have been to (found from your location) ---------- */
+export const XP_PROVINCE = 300, XP_DISTRICT = 50;
+export const provinces = () => G.provinces || {};
+export const districtCount = () => Object.values(G.provinces || {}).reduce((a, p) => a + Object.keys(p.d || {}).length, 0);
+// Returns the XP earned: a new province and a new district each count once.
+export function visitArea(prov, dist) {
+  G.provinces = G.provinces || {};
+  let xp = 0;
+  if (!G.provinces[prov]) { G.provinces[prov] = { at: new Date().toISOString(), d: {} }; xp += XP_PROVINCE; }
+  if (!G.provinces[prov].d[dist]) { G.provinces[prov].d[dist] = new Date().toISOString(); xp += XP_DISTRICT; }
+  if (xp) { G.xp += xp; save(); }
+  return xp;
+}
 export const badgeCount = () => BADGES.filter((b) => b.test()).length;
 
 /* ---------- characters and costumes ---------- */
