@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aydınlatma metni · Keşif</title>
+<style>
+:root{--bg:#f7f6fb;--fg:#1c1c1e;--muted:#6e6e73;--accent:#6d28d9}
+@media (prefers-color-scheme:dark){:root{--bg:#140f2e;--fg:#f2f2f7;--muted:#a1a1aa;--accent:#c4b5fd}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:24px 16px 64px}h1{font-size:1.6rem}h2{font-size:1.1rem;margin-top:1.6em}
+a{color:var(--accent)}.note{padding:12px 14px;border-radius:12px;background:rgba(124,58,237,.12);color:var(--fg)}small{color:var(--muted)}
+</style></head><body><main>
+<h1>Fotoğraf paylaşımı: kişisel veriler hakkında aydınlatma metni</h1>
+<p class="note"><b>Taslak.</b> Yayına almadan önce bir avukata kontrol ettirilecek; köşeli parantezli yerler doldurulacak.</p>
+<p>Bu metin, Keşif uygulamasında fotoğrafını <b>“Herkesle paylaş”</b> ile paylaştığında hangi verilerin neden işlendiğini 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında açıklar.</p>
+<h2>Veri sorumlusu</h2>
+<p>[Ad soyad / şirket unvanı], [adres]. İletişim: [e-posta adresi].</p>
+<h2>Paylaşmadığın sürece</h2>
+<p>Konumun, çektiğin fotoğraflar, adın ve oyun ilerlemen yalnızca kendi telefonunda saklanır; bize gönderilmez.</p>
+<h2>Paylaştığında işlenen veriler</h2>
+<ul>
+<li><b>Fotoğraf:</b> En fazla 1600 piksele küçültülür; içindeki gizli bilgiler (konum, cihaz modeli, çekim ayarları) gönderilmeden önce silinir.</li>
+<li><b>Yer:</b> Fotoğrafın ait olduğu yerin adı ve koordinatı (fotoğrafın o yerde gösterilmesi için).</li>
+<li><b>Uygulamadaki adın:</b> Fotoğrafın altında gösterilir. Gerçek adını yazmak zorunda değilsin.</li>
+<li><b>Cihaz kimliği:</b> Telefonunda rastgele üretilen bir kod. Hesap açmadan kötüye kullanımı engellemek, günlük yükleme sınırı uygulamak ve fotoğrafını yalnızca senin silebilmeni sağlamak için kullanılır.</li>
+<li><b>IP adresi:</b> Bot koruması (Cloudflare Turnstile) sırasında kısa süreli işlenir; ayrıca saklanmaz.</li>
+</ul>
+<h2>Amaç ve hukuki sebep</h2>
+<p>Paylaştığın fotoğrafın diğer kullanıcılara gösterilmesi, hizmetin güvenli işletilmesi ve uygunsuz içeriğin engellenmesi. Hukuki sebep: paylaşırken verdiğin açık rıza ve hizmetin sunulması için zorunlu olan işlemler (KVKK m. 5).</p>
+<h2>Otomatik kontrol ve aktarım</h2>
+<p>Her fotoğraf önce telefonunda, sonra sunucuda <b>Google Cloud Vision</b> ile uygunsuz içerik (çıplaklık, şiddet) açısından kontrol edilir. Fotoğraflar <b>Cloudflare</b> altyapısında saklanır. Bu hizmet sağlayıcıların sunucuları yurt dışında olabilir; aktarım KVKK m. 9’a uygun şekilde ve açık rızana dayanılarak yapılır.</p>
+<h2>Saklama süresi</h2>
+<p>Paylaşımı kaldırdığın an fotoğraf sunucudan silinir. Bildirim sonucu kaldırılan fotoğraflar da silinir; kötüye kullanımı önlemek için yalnızca cihaz kimliği ve kayıt bilgisi [süre] saklanabilir.</p>
+<h2>Hakların</h2>
+<p>KVKK m. 11 kapsamında verilerinin işlenip işlenmediğini öğrenme, düzeltilmesini ya da silinmesini isteme, itiraz etme haklarına sahipsin. Fotoğrafını uygulamadan kendin silebilirsin; diğer talepler için: [e-posta adresi].</p>
+<h2>Çocuklar</h2>
+<p>Fotoğraf paylaşımı 13 yaş altındaki kullanıcılar için kapalıdır.</p>
+<p><small>Son güncelleme: [tarih]</small></p>
+</main></body></html>

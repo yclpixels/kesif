@@ -598,3 +598,14 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .map-dark .pc-photos button { background: #34344a; } .map-dark .pc-addph { color: #c4b5fd; }
 .ph-pin { width: 40px; height: 40px; border-radius: 12px; overflow: hidden; border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, .35); background: #ddd; }
 .ph-pin img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* sharing photos with everyone */
+.vpub { position: absolute; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(28, 21, 70, .92); color: #fff; backdrop-filter: blur(10px); }
+.vpub span { flex: 1; font-size: .88rem; display: flex; align-items: center; gap: 6px; }
+.vpub .ico { width: 16px; height: 16px; }
+.pc-photos .pub, .strip .pub { outline: 2px solid #8b5cf6; outline-offset: -2px; }
+.ph-pin.pub { border-color: #c4b5fd; }
+.pub-sec { margin-top: 12px; }
+.consent p, .consent li { color: var(--text, #fff); }
+.check { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-weight: 700; }
+.check input { width: 22px; height: 22px; flex: 0 0 auto; }

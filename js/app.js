@@ -9,6 +9,7 @@ import * as A from './album.js';
 import { ICON } from './icons.js';
 import { PHRASE_GROUPS, LANG_WORD } from './phrases.js';
 import { checkPhoto, warmUp } from './photocheck.js';
+import * as SH from './share.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -103,6 +104,7 @@ async function loadLive() {
   const usePack = !nearby && !(state.place && distanceM(state.place, city().center) > 12000);
   const places = (usePack ? fetchPlaces(state.city) : Promise.resolve(null)).then((v) => v || fetchGrid(h.lat, h.lon)).then((v) => v || fetchPlacesLive(h.lat, h.lon));
   const stops = nearby ? fetchWikiStops(h.lat, h.lon, state.lang).then((list) => { if (run === loadRun) { NEARBY.stamps = list; onData(); } }) : Promise.resolve();
+  loadPublic();
   await Promise.all([fetchWeather(h.lat, h.lon).then(set('weather')), fetchPrayer(h.lat, h.lon).then(set('prayer')), places.then(set('places')), stops]);
   if (run === loadRun) { state.loading = false; onData(); }
 }
@@ -250,6 +252,7 @@ function openPlace(p, kindLabel) {
   if (state.cardPlace !== p) state.cardMode = null; // a new place: pick the travel mode again
   state.cardPlace = p; state.cardLabel = kindLabel;
   previewRoute(p);
+  SH.placePhotos(key).then((list) => { const box = document.querySelector('#place-card .pc-photos'); if (box && state.cardPlace === p && list.length) box.insertAdjacentHTML('beforeend', pubThumbs(list)); });
 }
 
 // Picking a place shows the way there at once: walking when it's close, by car when it's far,
@@ -428,6 +431,9 @@ function drawMarkers() {
   for (const ph of A.photos().filter((x) => x.lat != null).slice(0, 40)) {
     addMarker(ph.lat, ph.lon, `<div class="ph-pin"><img src="${A.photoUrl(ph.id)}" alt=""></div>`, { onClick: () => openViewer(ph.id), label: ph.place, z: 1 });
   }
+  for (const x of (state.pubNear || []).filter((x) => !SH.isMine(x.id)).slice(0, 40)) {
+    addMarker(x.lat, x.lon, `<div class="ph-pin pub"><img src="${SH.imgUrl(x.id)}" alt="" loading="lazy"></div>`, { onClick: () => openPublic(x.id), label: x.placeName, z: 1 });
+  }
   const pl = state.places;
   if (pl) {
     for (const p of nearest(pl.worship, 8)) { const k = worshipIcon(p.religion); addMarker(p.lat, p.lon, pinHtml(k, PIN_COLOR[k]), { onClick: () => openPlace(p, T(relKey(p.religion))), label: `${p.name || p.local}, ${T(relKey(p.religion))}` }); }
@@ -526,12 +532,15 @@ function renderStop() {
       <div class="row"><h2>${esc(T('your_photos'))}</h2><button type="button" class="btn sm" data-photo="${s.id}">${ico('camera')}${esc(T('take_photo'))}</button></div>
       ${A.photosFor(s.id).length ? `<div class="strip">${A.photosFor(s.id).map((p) => `<button type="button" data-view="${p.id}"><img src="${A.photoUrl(p.id)}" alt="${esc(s.name)}"></button>`).join('')}</div>`
         : `<p class="muted">${esc(T('photo_hint', { n: G.XP_PHOTO }))}</p>`}
+      <div class="pub-sec" id="pub-sec" hidden><h2>${esc(T('pub_everyone'))}</h2><div class="strip" id="pub-strip"></div></div>
     </div>
     ${got || near ? `<button type="button" class="btn ghost big" data-route-stop="${s.id}">${ico('walk')}${esc(T('route_draw'))}</button>` : ''}
     <a class="gm" href="${dirUrl(s)}" target="_blank" rel="noopener">${ico('map')}${esc(T('open_gmaps'))} →</a>
   </section>`;
 }
 function bindStop() {
+  const sid = state.stopId;
+  SH.placePhotos(sid).then((list) => { const html = pubThumbs(list); if (html && $('pub-strip') && state.stopId === sid) { $('pub-strip').innerHTML = html; $('pub-sec').hidden = false; } });
   const b = $('checkin'); if (!b) return;
   b.addEventListener('click', async () => {
     const msg = $('stop-msg');
@@ -1362,6 +1371,7 @@ async function savePhoto(file) {
     try { await A.addPhoto(file, { stop: photoTarget, city: state.city, place: pl.name || pl.local || state.cardLabel, pos: pos || { lat: pl.lat, lon: pl.lon }, kind: ok.kind }); } catch { toast(T('photo_failed')); return; }
     toast(T('photo_saved'));
     renderAll(); openPlace(pl, state.cardLabel);
+    if (SH.enabled()) openViewer(A.photos()[0].id);
     return;
   }
   // Which stop is this? The one the visitor chose, or the closest one they are standing at.
@@ -1375,6 +1385,7 @@ async function savePhoto(file) {
   if (xp) reward(xp, T('photo_at', { name: stop.name }));
   else toast(T('photo_saved') + (stop && !atStop ? ' · ' + T('photo_far') : ''));
   renderAll();
+  if (SH.enabled() && A.photos()[0]?.stop) openViewer(A.photos()[0].id);
 }
 
 async function openViewer(id) {
@@ -1388,9 +1399,53 @@ async function openViewer(id) {
       <button type="button" class="round" data-vdel="${p.id}" aria-label="${esc(T('delete'))}">${ico('trash')}</button>
       <button type="button" class="round" data-vclose aria-label="${esc(T('back'))}">✕</button>
     </div>
+    ${SH.enabled() && p.stop && p.lat != null ? `<div class="vpub">${SH.sharedOf(p.id)
+      ? `<span>${ico('check')}${esc(T('pub_on'))}</span><button type="button" class="btn sm ghost" data-vunpub="${p.id}">${esc(T('pub_remove'))}</button>`
+      : `<span>${esc(T(p.kind === 'selfie' ? 'pub_selfie_q' : 'pub_q'))}</span><button type="button" class="btn sm" data-vpub="${p.id}">${ico('profile')}${esc(T('pub_share'))}</button>`}</div>` : ''}
     <p class="vconfirm" id="vconfirm" hidden><span>${esc(T('delete_q'))}</span><button type="button" class="btn sm" data-vdel-yes="${p.id}">${esc(T('delete'))}</button><button type="button" class="btn sm ghost" data-vclose>${esc(T('cancel'))}</button></p>`;
   $('viewer').hidden = false;
 }
+// Share an album photo with everyone (after a one-time consent), or take it back.
+async function publish(id) {
+  if (!SH.consented()) { askConsent(id); return; }
+  const p = A.photos().find((x) => x.id === id), f = await A.photoFile(id); if (!p || !f) return;
+  toast(T('pub_sending'));
+  const r = await SH.sharePhoto(p, f, { name: G.game().name || '', placeName: p.place });
+  toast(r.ok ? T('pub_done') : T('pub_err_' + (['refused', 'limit', 'banned', 'offline', 'outside_turkey'].includes(r.error) ? r.error : 'other')));
+  if (r.ok) { SH.forget(); openViewer(id); loadPublic(); }
+}
+async function unpublish(id) {
+  toast((await SH.unshare(id)) ? T('pub_removed') : T('pub_err_offline'));
+  SH.forget(); openViewer(id); loadPublic();
+}
+function askConsent(id) {
+  $('tools-title').textContent = T('pub_consent_t');
+  $('tools-body').innerHTML = `<div class="consent"><p>${esc(T('pub_consent_1'))}</p><ul class="bullets"><li>${esc(T('pub_consent_2'))}</li><li>${esc(T('pub_consent_3'))}</li><li>${esc(T('pub_consent_4'))}</li></ul>
+    <label class="check"><input type="checkbox" id="consent-ok"> <span>${esc(T('pub_consent_age'))}</span></label>
+    <p><a href="./gizlilik.html" target="_blank" rel="noopener">${esc(T('pub_privacy'))}</a> · <a href="./kosullar.html" target="_blank" rel="noopener">${esc(T('pub_terms'))}</a></p>
+    <button type="button" class="btn big" data-consent="${id}" disabled id="consent-go">${esc(T('pub_share'))}</button></div>`;
+  $('tools-sheet').hidden = false;
+  $('consent-ok').addEventListener('change', (e) => { $('consent-go').disabled = !e.target.checked; });
+}
+// Everyone's photos of a place, shown after your own on the card / stop page.
+const pubSeen = new Map();
+function pubThumbs(list) { for (const x of list) pubSeen.set(x.id, x); return list.filter((x) => !SH.isMine(x.id)).map((x) => `<button type="button" class="pub" data-pview="${x.id}"><img src="${SH.imgUrl(x.id)}" alt="${esc(x.placeName || '')}" loading="lazy"></button>`).join(''); }
+function openPublic(id) {
+  const x = pubSeen.get(id); if (!x) return;
+  const locale = { en: 'en-GB', tr: 'tr-TR', de: 'de-DE', ru: 'ru-RU' }[state.lang];
+  $('viewer').innerHTML = `<img src="${SH.imgUrl(x.id)}" alt="${esc(x.placeName || '')}">
+    <div class="vbar"><span><b>${esc(x.placeName || '')}</b><small>${esc(x.name || T('traveler'))} · ${esc(new Date(x.created.replace(' ', 'T') + 'Z').toLocaleDateString(locale, { dateStyle: 'medium' }))}</small></span>
+      <button type="button" class="round" data-preport="${x.id}" aria-label="${esc(T('pub_report'))}">${ico('sos')}</button>
+      <button type="button" class="round" data-vclose aria-label="${esc(T('back'))}">✕</button></div>`;
+  $('viewer').hidden = false;
+}
+// Shared photos around here, for the map.
+function loadPublic() {
+  if (!SH.enabled()) return;
+  const h = here();
+  SH.nearPhotos(h.lat, h.lon).then((list) => { state.pubNear = list; for (const x of list) pubSeen.set(x.id, x); drawMarkers(); });
+}
+
 async function sharePhoto(id) {
   const f = await A.photoFile(id); if (!f) return;
   try {
@@ -1541,9 +1596,14 @@ function init() {
   fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-vpub],[data-vunpub],[data-pview],[data-preport],[data-consent],[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.pcMode) { state.cardMode = el.dataset.pcMode; previewRoute(state.cardPlace); }
+    if (el.dataset.vpub) publish(el.dataset.vpub);
+    else if (el.dataset.vunpub) unpublish(el.dataset.vunpub);
+    else if (el.dataset.pview) openPublic(el.dataset.pview);
+    else if (el.dataset.preport) { SH.report(el.dataset.preport).then(() => { toast(T('pub_reported')); $('viewer').hidden = true; }); }
+    else if (el.dataset.consent) { SH.setConsent(); $('tools-sheet').hidden = true; publish(el.dataset.consent); }
+    else if (el.dataset.pcMode) { state.cardMode = el.dataset.pcMode; previewRoute(state.cardPlace); }
     else if (el.dataset.prov) openCityPicker({ prov: +el.dataset.prov });
     else if (el.hasAttribute('data-prov-back')) openCityPicker();
     else if (el.dataset.place) { const [a, b] = el.dataset.place.split(':').map(Number); setPlace(a, b); }
@@ -1570,7 +1630,7 @@ function init() {
     else if (el.dataset.view) openViewer(el.dataset.view);
     else if (el.dataset.vshare) sharePhoto(el.dataset.vshare);
     else if (el.dataset.vdel) $('vconfirm').hidden = false;
-    else if (el.dataset.vdelYes) { A.deletePhoto(el.dataset.vdelYes).then(() => { $('viewer').hidden = true; renderAll(); }); }
+    else if (el.dataset.vdelYes) { const vid = el.dataset.vdelYes; (SH.sharedOf(vid) ? SH.unshare(vid) : Promise.resolve()).then(() => A.deletePhoto(vid)).then(() => { $('viewer').hidden = true; SH.forget(); renderAll(); loadPublic(); }); }
     else if (el.hasAttribute('data-vclose')) $('viewer').hidden = true;
     else if (el.dataset.rate) { const [id, n] = el.dataset.rate.split(':'); G.rate(id, +n); if (id.startsWith('p_') && state.cardPlace) openPlace(state.cardPlace, state.cardLabel); else renderView(); }
     else if (el.dataset.scroll) $(el.dataset.scroll)?.scrollIntoView({ behavior: 'smooth' });

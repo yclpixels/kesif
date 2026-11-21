@@ -1,0 +1,21 @@
+# Keşif photo server. Setup steps are in server/README.md.
+name = "kesif-photos"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+# The site that may call this server (GitHub Pages; add a custom domain later if you get one).
+ALLOWED_ORIGINS = "https://yclpixels.github.io,http://localhost:8782"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "kesif-photos"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kesif-photos"
+database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
+
+# Secrets (never in this file):  npx wrangler secret put VISION_API_KEY
+#                                npx wrangler secret put TURNSTILE_SECRET
+#                                npx wrangler secret put ADMIN_KEY
