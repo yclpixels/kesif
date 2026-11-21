@@ -580,3 +580,10 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .map-dark .pc-modes button[aria-pressed="true"] { background: #44445a; color: #fff; }
 .map-dark .pc-eta { color: #d6d6e2; }
 .plan-num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #7c3aed; color: #fff; font-weight: 800; font-size: .85rem; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer; }
+
+/* Türkiye map of visited provinces */
+.trmap { margin: 6px 0 10px; }
+.trmap svg { display: block; width: 100%; height: auto; }
+.trmap path { fill: rgba(255, 255, 255, .08); stroke: rgba(255, 255, 255, .18); stroke-width: .6; }
+.trmap path.on { fill: #8b5cf6; stroke: #c4b5fd; }
+.trmap path.here { fill: #fcd34d; stroke: #fde68a; }

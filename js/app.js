@@ -642,6 +642,7 @@ function renderProfile() {
   </div>
   <section class="panel">
     <div class="row"><h2>${esc(T('my_provinces'))}</h2><span class="muted">${Object.keys(G.provinces()).length} / 81</span></div>
+    <div class="trmap" id="trmap" aria-hidden="true"></div>
     ${bar(Object.keys(G.provinces()).length, 81)}
     <p class="muted">${Object.keys(G.provinces()).length ? esc(Object.entries(G.provinces()).sort((a, b) => a[1].at.localeCompare(b[1].at)).map(([n, p]) => `${n} (${Object.keys(p.d).length})`).join(' · ')) : esc(T('provinces_hint'))}</p>
     <small class="muted">${esc(T('districts_n', { n: G.districtCount() }))}</small>
@@ -686,7 +687,16 @@ function friendsHtml() {
   }).join('')}</ol>`;
 }
 
+// Türkiye with the provinces you've been to filled in (drawn from data/tr-map.json, loaded once).
+let TRMAP = null;
+async function drawTrMap() {
+  const box = $('trmap'); if (!box) return;
+  try { TRMAP = TRMAP || await (await fetch('./data/tr-map.json')).json(); } catch { box.remove(); return; }
+  const seen = G.provinces();
+  box.innerHTML = `<svg viewBox="0 0 ${TRMAP.w} ${TRMAP.h}" role="img">${TRMAP.p.map(([n, d]) => `<path d="${d}" class="${seen[n] ? 'on' : ''}${state.areaProv === n ? ' here' : ''}"><title>${esc(n)}</title></path>`).join('')}</svg>`;
+}
 function bindProfile() {
+  drawTrMap();
   $('map-theme')?.addEventListener('change', (e) => { store.set('mapTheme', e.target.value); applyTheme(); });
   $('offline-btn')?.addEventListener('click', saveOffline);
   const msg = $('friend-msg');

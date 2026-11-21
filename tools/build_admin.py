@@ -243,6 +243,31 @@ def write(districts, thin, coords):
     with open(os.path.join(out_dir, "index.json"), "w") as f:
         json.dump(sorted(cells), f, separators=(",", ":"))
     print(f"wrote {len(cells)} squares, {size // 1024} KB; no border for {missing}", file=sys.stderr)
+    write_country_map(districts, thin, coords)
+
+
+def write_country_map(districts, thin, coords):
+    """A small drawing of Türkiye for the profile: every district as an SVG path, grouped by province."""
+    k = math.cos(math.radians(39))  # keep shapes true at Türkiye's latitude
+    W, minx, maxx, miny, maxy = 1000, 25.6, 44.9, 35.8, 42.2
+    sx = W / ((maxx - minx) * k)
+    H = round((maxy - miny) * sx)
+    prov = {}
+    for pn, dn, ws in districts:
+        for ring in rings_of([thin[w] for w in ws if w in thin]):
+            pts = simplify([coords[n] for n in ring if n in coords], 0.012)
+            xy = []
+            for y, x in pts:
+                q = (round((x - minx) * k * sx), round((maxy - y) * sx))
+                if not xy or xy[-1] != q:
+                    xy.append(q)
+            if len(xy) >= 4:
+                prov.setdefault(pn, []).append("M" + "L".join(f"{a},{b}" for a, b in xy) + "Z")
+    out = {"w": W, "h": H, "p": [[n, "".join(paths)] for n, paths in sorted(prov.items())]}
+    path = os.path.join(ROOT, "data", "tr-map.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"country map: {len(prov)} provinces, {os.path.getsize(path) // 1024} KB", file=sys.stderr)
 
 
 if __name__ == "__main__":
