@@ -51,9 +51,9 @@ async function shrink(file) {
 }
 
 // stop: passport stop id or '' for a free view photo. place: name to show. pos: {lat, lon} or null.
-export async function addPhoto(file, { stop = '', city = '', place = '', pos = null } = {}) {
+export async function addPhoto(file, { stop = '', city = '', place = '', pos = null, kind = '' } = {}) {
   const blob = await shrink(file);
-  const p = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), stop, city, place, ts: Date.now(), lat: pos?.lat ?? null, lon: pos?.lon ?? null };
+  const p = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), stop, city, place, kind, ts: Date.now(), lat: pos?.lat ?? null, lon: pos?.lon ?? null };
   await tx('readwrite', (s) => s.put({ ...p, blob }));
   meta = [p, ...meta];
   urls.set(p.id, URL.createObjectURL(blob));

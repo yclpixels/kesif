@@ -8,6 +8,7 @@ import { PHOTOS } from './photos.js';
 import * as A from './album.js';
 import { ICON } from './icons.js';
 import { PHRASE_GROUPS, LANG_WORD } from './phrases.js';
+import { checkPhoto, warmUp } from './photocheck.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -242,6 +243,7 @@ function openPlace(p, kindLabel) {
       ${p.web ? `<a class="btn ghost" href="${esc(p.web)}" target="_blank" rel="noopener">${esc(T('website'))}</a>` : ''}
       <button type="button" class="btn ghost" data-share aria-label="${esc(T('share_place'))}">${ico('share')}</button>
     </div>
+    <div class="pc-photos">${A.photosFor(key).map((ph) => `<button type="button" data-view="${ph.id}"><img src="${A.photoUrl(ph.id)}" alt="${esc(p.name || p.local || '')}"></button>`).join('')}<button type="button" class="pc-addph" data-photo="${key}" aria-label="${esc(T('take_photo'))}">${ico('camera')}<small>${esc(T('add_photo'))}</small></button></div>
     <a class="pc-reviews" href="${mapUrl(p)}" target="_blank" rel="noopener">${ico('collection')}<span><b>${esc(T('reviews'))}</b><small>${esc(T('reviews_note'))}</small></span>${ico('chevron')}</a>
     <div class="rate pc-rate"><span>${esc(T(mine ? 'your_rating' : 'rate_title'))}</span><div class="stars" role="group" aria-label="${esc(T('rate_title'))}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rate="${key}:${n}" aria-label="${n}" aria-pressed="${n <= mine}">${ico('collection')}</button>`).join('')}</div></div>`;
   $('place-card').hidden = false;
@@ -422,6 +424,10 @@ const worshipIcon = (r) => (r === 'christian' ? 'church' : r === 'jewish' ? 'syn
 function drawMarkers() {
   if (!map) return;
   markers.forEach((m) => m.remove()); markers = [];
+  // Your photos appear on the map where you took them (newest 40).
+  for (const ph of A.photos().filter((x) => x.lat != null).slice(0, 40)) {
+    addMarker(ph.lat, ph.lon, `<div class="ph-pin"><img src="${A.photoUrl(ph.id)}" alt=""></div>`, { onClick: () => openViewer(ph.id), label: ph.place, z: 1 });
+  }
   const pl = state.places;
   if (pl) {
     for (const p of nearest(pl.worship, 8)) { const k = worshipIcon(p.religion); addMarker(p.lat, p.lon, pinHtml(k, PIN_COLOR[k]), { onClick: () => openPlace(p, T(relKey(p.religion))), label: `${p.name || p.local}, ${T(relKey(p.religion))}` }); }
@@ -1339,19 +1345,31 @@ function renderSos() {
 
 /* ---------- photos ---------- */
 let photoTarget = '';
-function startPhoto(stopId) { photoTarget = stopId; $('cam').value = ''; $('cam').click(); }
+function startPhoto(stopId) { photoTarget = stopId; $('cam').value = ''; warmUp(); $('cam').click(); }
 
 async function savePhoto(file) {
   if (!file) return;
+  // Check it on the phone first: no nudity, only selfies and views.
+  toast(T('photo_checking'));
+  const ok = await checkPhoto(file).catch(() => ({ ok: false, reason: 'offline' }));
+  if (!ok.ok) { toast(T('photo_no_' + ok.reason)); return; }
   toast(T('photo_saving'));
   let pos = null;
   try { const p = await getPosition(8000); pos = { lat: p.lat, lon: p.lon, acc: p.acc }; state.pos = { lat: p.lat, lon: p.lon }; } catch { /* no location: still keep the photo */ }
+  // A photo for a place from its card (a restaurant, a mosque…): kept under that place.
+  if (photoTarget && photoTarget.startsWith('p_') && state.cardPlace) {
+    const pl = state.cardPlace;
+    try { await A.addPhoto(file, { stop: photoTarget, city: state.city, place: pl.name || pl.local || state.cardLabel, pos: pos || { lat: pl.lat, lon: pl.lon }, kind: ok.kind }); } catch { toast(T('photo_failed')); return; }
+    toast(T('photo_saved'));
+    renderAll(); openPlace(pl, state.cardLabel);
+    return;
+  }
   // Which stop is this? The one the visitor chose, or the closest one they are standing at.
   let stop = photoTarget ? stopById(photoTarget) : null;
   if (!stop && pos) stop = allStops().map((x) => ({ ...x, d: distanceM(pos, x) })).filter((x) => x.d <= CHECKIN_RADIUS + Math.min(pos.acc || 0, 100)).sort((a, b) => a.d - b.d)[0] || null;
   const atStop = !!(stop && pos && distanceM(pos, stop) <= CHECKIN_RADIUS + Math.min(pos.acc || 0, 100));
   try {
-    await A.addPhoto(file, { stop: stop?.id || '', city: stop?.city || state.city, place: stop?.name || T('photo_view'), pos });
+    await A.addPhoto(file, { stop: stop?.id || '', city: stop?.city || state.city, place: stop?.name || T('photo_view'), pos, kind: ok.kind });
   } catch { toast(T('photo_failed')); return; }
   const xp = G.logPhoto(atStop ? stop.id : '');
   if (xp) reward(xp, T('photo_at', { name: stop.name }));

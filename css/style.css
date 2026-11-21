@@ -587,3 +587,14 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .trmap path { fill: rgba(255, 255, 255, .08); stroke: rgba(255, 255, 255, .18); stroke-width: .6; }
 .trmap path.on { fill: #8b5cf6; stroke: #c4b5fd; }
 .trmap path.here { fill: #fcd34d; stroke: #fde68a; }
+
+/* photos of a place, and on the map */
+.pc-photos { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.pc-photos button { flex: 0 0 72px; height: 72px; padding: 0; border: 0; border-radius: 12px; overflow: hidden; cursor: pointer; background: #eeeef3; }
+.pc-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pc-addph { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #5b21b6; font-weight: 700; }
+.pc-addph .ico { width: 22px; height: 22px; }
+.pc-addph small { font-size: .7rem; }
+.map-dark .pc-photos button { background: #34344a; } .map-dark .pc-addph { color: #c4b5fd; }
+.ph-pin { width: 40px; height: 40px; border-radius: 12px; overflow: hidden; border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, .35); background: #ddd; }
+.ph-pin img { width: 100%; height: 100%; object-fit: cover; display: block; }

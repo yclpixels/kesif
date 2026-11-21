@@ -1,9 +1,9 @@
 // Damga service worker: keeps the app shell available offline.
 // Live data (weather, prayer times, places) is cached separately in localStorage by js/api.js.
-const VERSION = 'kesif-v33';
+const VERSION = 'kesif-v34';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/apple-touch-icon.png',
-  './js/app.js', './js/api.js', './js/data.js', './js/i18n.js', './js/game.js', './js/mascot.js', './js/stops-info.js', './js/photos.js', './js/album.js', './js/icons.js', './js/phrases.js', './assets/3d/manifest.json', './data/tr-admin.json', './data/grid/index.json', './data/tr-map.json'
+  './js/app.js', './js/api.js', './js/data.js', './js/i18n.js', './js/game.js', './js/mascot.js', './js/stops-info.js', './js/photos.js', './js/album.js', './js/icons.js', './js/phrases.js', './js/photocheck.js', './assets/3d/manifest.json', './data/tr-admin.json', './data/grid/index.json', './data/tr-map.json'
 ];
 // Place snapshots are large and may be missing in a fresh checkout; cache them when they exist.
 const OPTIONAL = ['istanbul', 'ankara', 'izmir', 'antalya', 'kapadokya', 'bursa', 'eskisehir', 'trabzon', 'mardin', 'safranbolu', 'konya', 'gaziantep', 'sanliurfa', 'edirne', 'canakkale'].map((c) => `./data/places-${c}.json`);
@@ -20,6 +20,7 @@ self.addEventListener('activate', (e) => {
 const RUNTIME = [
   [/^https:\/\/tiles\.openfreemap\.org\//, 'kesif-map'],
   [/^https:\/\/unpkg\.com\/(maplibre-gl|@google\/model-viewer)@/, 'kesif-map'],
+  [/^https:\/\/cdn\.jsdelivr\.net\/npm\/@tensorflow/, 'kesif-map'],
   [/^https:\/\/(upload|thumb)\.wikimedia\.org\//, 'kesif-img']
 ];
 self.addEventListener('fetch', (e) => {
