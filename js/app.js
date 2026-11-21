@@ -538,7 +538,7 @@ function bindStop() {
 function renderQuests() {
   // The daily login reward sits in its own chest card at the bottom, like the design.
   const list = G.QUESTS.filter((q) => q.period === state.qtab && q.id !== 'd_login');
-  const qIcon = { s_near: 'locate', s_izm: 'history', s_ant: 'history', s_kap: 'view', d_photo: 'camera', s_photo: 'camera', d_stamp: 'collection', d_fare: 'taxi', w_five: 'collection', w_worship: 'worship', s_ist: 'history', s_ank: 'history', s_market: 'market', s_museum: 'museum', s_asia: 'view', s_chars: 'egg' };
+  const qIcon = { d_area: 'map', w_areas: 'walk', s_prov3: 'map',  s_near: 'locate', s_izm: 'history', s_ant: 'history', s_kap: 'view', d_photo: 'camera', s_photo: 'camera', d_stamp: 'collection', d_fare: 'taxi', w_five: 'collection', w_worship: 'worship', s_ist: 'history', s_ank: 'history', s_market: 'market', s_museum: 'museum', s_asia: 'view', s_chars: 'egg' };
   const qPhoto = { s_izm: 'iz_clock', s_ant: 'an_hadrian', s_kap: 'ka_goreme', s_photo: 'kale', d_stamp: 'topkapi', w_five: 'galata', w_worship: 'blue', s_ist: 'hagia', s_ank: 'anitkabir', s_market: 'bazaar', s_museum: 'anadolu', s_asia: 'kpier' };
   const login = G.QUESTS.find((q) => q.id === 'd_login'), ls = G.questState(login);
   return `${header(`<span class="hicon">${ico('quests')}</span>${esc(T('nav_quests'))}`, `<button type="button" class="round" data-go="profile" aria-label="${esc(T('friends'))}">${ico('profile')}</button>`)}
@@ -646,6 +646,7 @@ function renderProfile() {
     ${bar(Object.keys(G.provinces()).length, 81)}
     <p class="muted">${Object.keys(G.provinces()).length ? esc(Object.entries(G.provinces()).sort((a, b) => a[1].at.localeCompare(b[1].at)).map(([n, p]) => `${n} (${Object.keys(p.d).length})`).join(' · ')) : esc(T('provinces_hint'))}</p>
     <small class="muted">${esc(T('districts_n', { n: G.districtCount() }))}</small>
+    ${Object.keys(G.provinces()).length ? `<button type="button" class="btn ghost" id="share-map">${ico('share')}${esc(T('share_map'))}</button>` : ''}
   </section>
   <section class="panel">
     <div class="row" id="friends-sec"><h2>${esc(T('friends'))}</h2><span class="muted">${G.game().friends.length}</span></div>
@@ -695,8 +696,43 @@ async function drawTrMap() {
   const seen = G.provinces();
   box.innerHTML = `<svg viewBox="0 0 ${TRMAP.w} ${TRMAP.h}" role="img">${TRMAP.p.map(([n, d]) => `<path d="${d}" class="${seen[n] ? 'on' : ''}${state.areaProv === n ? ' here' : ''}"><title>${esc(n)}</title></path>`).join('')}</svg>`;
 }
+// A picture to share: Türkiye with your provinces, your name and your numbers (story-size, 1080×1350).
+async function shareMapImage() {
+  try { TRMAP = TRMAP || await (await fetch('./data/tr-map.json')).json(); } catch { return; }
+  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'), seen = G.provinces(), n = Object.keys(seen).length;
+  const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2e1065'); g.addColorStop(1, '#120a2e');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const font = (w, s) => `${w} ${s}px -apple-system, "SF Pro Rounded", system-ui, sans-serif`;
+  x.fillStyle = '#c4b5fd'; x.font = font(700, 40); x.fillText('Keşif', 80, 130);
+  x.fillStyle = '#fff'; x.font = font(800, 76); x.fillText(T('share_map_title', { n }), 80, 240);
+  x.fillStyle = '#c4b5fd'; x.font = font(600, 40); x.fillText(T('districts_n', { n: G.districtCount() }), 80, 305);
+  const sc = (W - 120) / TRMAP.w; x.save(); x.translate(60, 420); x.scale(sc, sc);
+  x.lineWidth = 1.2 / sc * 1.4; x.lineJoin = 'round';
+  for (const [name, d] of TRMAP.p) {
+    const p = new Path2D(d);
+    x.fillStyle = seen[name] ? '#8b5cf6' : 'rgba(255,255,255,0.10)'; x.fill(p);
+    x.strokeStyle = seen[name] ? '#ddd6fe' : 'rgba(255,255,255,0.22)'; x.stroke(p);
+  }
+  x.restore();
+  const list = Object.keys(seen).slice(0, 12).join(' · ');
+  x.fillStyle = '#fff'; x.font = font(600, 34);
+  let line = '', y = 420 + TRMAP.h * sc + 90;
+  for (const w of list.split(' ')) { if (x.measureText(line + w).width > W - 160) { x.fillText(line, 80, y); y += 48; line = ''; } line += w + ' '; }
+  if (line) x.fillText(line, 80, y);
+  x.fillStyle = '#fcd34d'; x.font = font(700, 36); x.fillText(`${playerName()} · ${T('level', { n: G.levelInfo().level })}`, 80, H - 90);
+  x.fillStyle = '#a78bfa'; x.font = font(600, 30); x.fillText('yclpixels.github.io/kesif', W - 80 - x.measureText('yclpixels.github.io/kesif').width, H - 90);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  const file = new File([blob], 'kesif-turkiye.png', { type: 'image/png' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: T('share_map_title', { n }) + ' · Keşif' }); return; }
+  } catch { return; /* cancelled */ }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kesif-turkiye.png'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
 function bindProfile() {
   drawTrMap();
+  $('share-map')?.addEventListener('click', shareMapImage);
   $('map-theme')?.addEventListener('change', (e) => { store.set('mapTheme', e.target.value); applyTheme(); });
   $('offline-btn')?.addEventListener('click', saveOffline);
   const msg = $('friend-msg');

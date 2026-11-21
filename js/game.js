@@ -81,7 +81,11 @@ export const QUESTS = [
   { id: 's_asia', period: 'special', xp: 500, goal: 1, progress: () => (has('kpier') ? 1 : 0) },
   { id: 'd_photo', period: 'daily', xp: 150, goal: 1, progress: () => (G.photoLog || []).filter((p) => p.date === today()).length },
   { id: 's_photo', period: 'special', xp: 500, goal: 3, progress: () => photoStops().length },
-  { id: 's_chars', period: 'special', xp: 1000, goal: 5, progress: () => unlockedCharacters().length }
+  { id: 's_chars', period: 'special', xp: 1000, goal: 5, progress: () => unlockedCharacters().length },
+  // Getting around: districts and provinces found from your location
+  { id: 'd_area', period: 'daily', xp: 200, goal: 1, progress: () => Object.values(G.provinces || {}).flatMap((p) => Object.values(p.d || {})).filter((d) => String(d).slice(0, 10) === today()).length },
+  { id: 'w_areas', period: 'weekly', xp: 600, goal: 3, progress: () => Object.values(G.provinces || {}).flatMap((p) => Object.values(p.d || {})).filter((d) => String(d).length > 9 && weekKey(new Date(d)) === weekKey()).length },
+  { id: 's_prov3', period: 'special', xp: 1500, goal: 3, progress: () => Object.keys(G.provinces || {}).length }
 ];
 
 const claimKey = (q) => q.period === 'daily' ? `${q.id}:${today()}` : q.period === 'weekly' ? `${q.id}:${weekKey()}` : q.id;
