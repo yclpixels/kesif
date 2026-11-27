@@ -805,6 +805,14 @@ function renderProfile() {
     <button type="button" class="btn" id="offline-btn">${ico('map')}${esc(T('offline_btn', { city: placeName() }))}</button>
     <p class="muted" id="offline-msg" aria-live="polite"></p>
   </section>
+  <section class="panel">
+    <h2>${esc(T('backup_title'))}</h2>
+    <p class="muted">${esc(T('backup_note'))}</p>
+    <button type="button" class="btn" id="backup-save">${ico('share')}${esc(T('backup_save'))}</button>
+    <button type="button" class="btn ghost" id="backup-load">${esc(T('backup_load'))}</button>
+    <input type="file" id="backup-file" accept=".json,application/json" hidden>
+    <p class="muted" id="backup-msg" aria-live="polite">${store.get('backupAt', '') ? esc(T('backup_last', { d: store.get('backupAt', '') })) : ''}</p>
+  </section>
   <p class="credit">${esc(T('data_credit'))}</p>`;
 }
 function friendsHtml() {
@@ -858,7 +866,36 @@ async function shareMapImage() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kesif-turkiye.png'; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
+// Progress lives in this browser only: save it to a file (or share it to yourself) and load it back.
+const BACKUP_SKIP = /^damga:(api|backupAt)$/;
+async function saveBackup() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('damga:') && !BACKUP_SKIP.test(k)) data[k] = localStorage.getItem(k); }
+  const day = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([JSON.stringify({ app: 'kesif', v: 1, at: new Date().toISOString(), data })], { type: 'application/json' });
+  const file = new File([blob], `kesif-yedek-${day}.json`, { type: 'application/json' });
+  store.set('backupAt', day);
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Keşif' }); $('backup-msg').textContent = T('backup_done'); return; }
+  } catch { return; /* cancelled */ }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  $('backup-msg').textContent = T('backup_done');
+}
+async function loadBackup(f) {
+  if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'kesif' || !d.data || typeof d.data !== 'object') throw new Error('not ours');
+    if (!confirm(T('backup_confirm', { d: String(d.at || '').slice(0, 10) }))) return;
+    for (const [k, v] of Object.entries(d.data)) if (k.startsWith('damga:') && typeof v === 'string') localStorage.setItem(k, v);
+    location.reload();
+  } catch { $('backup-msg').textContent = T('backup_bad'); }
+}
 function bindProfile() {
+  $('backup-save')?.addEventListener('click', saveBackup);
+  $('backup-load')?.addEventListener('click', () => $('backup-file').click());
+  $('backup-file')?.addEventListener('change', (e) => loadBackup(e.target.files && e.target.files[0]));
   drawTrMap();
   $('share-map')?.addEventListener('click', shareMapImage);
   $('map-theme')?.addEventListener('change', (e) => { store.set('mapTheme', e.target.value); applyTheme(); });
@@ -1706,6 +1743,7 @@ function setCity(id) {
 }
 
 function init() {
+  try { navigator.storage?.persist?.(); } catch { /* not supported */ }
   fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
