@@ -461,3 +461,7 @@ Object.assign(S.en, { map_2d: 'Show flat map', map_3d: 'Show 3D map' });
 Object.assign(S.tr, { map_2d: 'Düz haritaya geç', map_3d: '3D haritaya geç' });
 Object.assign(S.de, { map_2d: 'Flache Karte', map_3d: '3D-Karte' });
 Object.assign(S.ru, { map_2d: 'Плоская карта', map_3d: '3D-карта' });
+Object.assign(S.en, { zoom_in: 'Zoom in', zoom_out: 'Zoom out', north_up: 'North up', hotel: 'Hotel', shop: 'Shop' });
+Object.assign(S.tr, { zoom_in: 'Yakınlaştır', zoom_out: 'Uzaklaştır', north_up: 'Kuzeyi yukarı al', hotel: 'Otel', shop: 'Mağaza' });
+Object.assign(S.de, { zoom_in: 'Vergrößern', zoom_out: 'Verkleinern', north_up: 'Nach Norden ausrichten', hotel: 'Hotel', shop: 'Geschäft' });
+Object.assign(S.ru, { zoom_in: 'Приблизить', zoom_out: 'Отдалить', north_up: 'На север', hotel: 'Отель', shop: 'Магазин' });

@@ -332,6 +332,11 @@ function initMap() {
   });
   // Credit line is drawn by us in index.html (#map-credit) so it stays one small, quiet line.
   map.on('style.load', () => { tintMap(); add3d(); applyTheme(); });
+  for (const id of ['poi_r1', 'poi_r7', 'poi_r20']) {
+    map.on('click', id, (e) => { e.preventDefault(); poiTap(e); });
+    map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+  }
 }
 
 /* ---------- 3D: real hills and mountains, sky, sunlight on buildings ---------- */
@@ -381,9 +386,10 @@ const MAP_PALETTE = {
   light: { bg: '#f5f3ee', resid: '#efede7', park: '#cfe8bf', wood: '#c3e2b0', water: '#a5d4f7', sand: '#f2ead3', hospital: '#f8e2e2', school: '#efe9da', aero: '#e7e5e0',
     motorway: '#f8c35c', motorwayCase: '#dca34a', major: '#fde6a3', majorCase: '#e7cf8c', street: '#ffffff', streetCase: '#dcd8d0', path: '#ffffff', rail: '#c9c6bf',
     bldg: '#e6e3de', bldg3d: ['#efedea', '#e3e0db', '#d7d3cd'], border: '#b8b4c4', label: '#3a3a3c', roadLabel: '#6e6e73', waterLabel: '#3f78ad', halo: '#ffffff' },
-  dark: { bg: '#1f2024', resid: '#232428', park: '#1d3427', wood: '#1a3123', water: '#12304e', sand: '#2e2b22', hospital: '#3a272c', school: '#2b2924', aero: '#28292d',
-    motorway: '#8f6f2f', motorwayCase: '#5e4a25', major: '#5d5848', majorCase: '#3e3b31', street: '#3a3b41', streetCase: '#28292e', path: '#34353b', rail: '#45464c',
-    bldg: '#2b2c31', bldg3d: ['#2c2d33', '#35363d', '#404149'], border: '#56576b', label: '#d6d6db', roadLabel: '#a5a5ad', waterLabel: '#86aedb', halo: '#18181b' }
+  // Night: deep blue-grey ground with light lavender streets, like Yandex and Apple at night
+  dark: { bg: '#232a3d', resid: '#262d41', park: '#1e4636', wood: '#1b4031', water: '#17304f', sand: '#2f3142', hospital: '#3a2d3f', school: '#2a3045', aero: '#2a3045',
+    motorway: '#8c95b8', motorwayCase: '#3d4560', major: '#737ca0', majorCase: '#353c55', street: '#5a6283', streetCase: '#2c3247', path: '#465071', rail: '#3f4762',
+    bldg: '#2d3449', bldg3d: ['#2f364c', '#384059', '#424b66'], border: '#5d6585', label: '#e8eaf2', roadLabel: '#c3c8db', waterLabel: '#8db4e8', halo: '#1f2537' }
 };
 function paintMap(dark) {
   const P = MAP_PALETTE[dark ? 'dark' : 'light'];
@@ -407,17 +413,86 @@ function paintMap(dark) {
         : /trunk|primary|secondary|tertiary|_link/.test(id) ? (cas ? P.majorCase : P.major)
         : /path|pedestrian/.test(id) ? (cas ? P.streetCase : P.path) : cas ? P.streetCase : P.street);
     } else if (l.type === 'symbol') {
-      set(id, 'text-color', /water/.test(id) ? P.waterLabel : /highway|road/.test(id) ? P.roadLabel : P.label);
+      if (!/^poi_/.test(id)) set(id, 'text-color', /water/.test(id) ? P.waterLabel : /highway|road/.test(id) ? P.roadLabel : P.label); // places keep their category colour
       set(id, 'text-halo-color', P.halo);
     }
   }
 }
+/* ---------- every place on the map, Yandex/Apple style: coloured icon + name in the same colour ---------- */
+// OpenMapTiles POI classes → [colour, icon, card label key]
+const POI_STYLE = {
+  restaurant: ['#f08c00', 'food', 'restaurant'], fast_food: ['#f08c00', 'food', 'restaurant'], bar: ['#f08c00', 'food', 'restaurant'], beer: ['#f08c00', 'food', 'restaurant'],
+  cafe: ['#c06a2b', 'cafe', 'cafe'], bakery: ['#c06a2b', 'cafe', 'cafe'], ice_cream: ['#c06a2b', 'cafe', 'cafe'],
+  lodging: ['#7c5cff', 'bed', 'hotel'],
+  shop: ['#2f80ed', 'market', 'shop'], grocery: ['#2f80ed', 'market', 'shop'], clothing_store: ['#2f80ed', 'market', 'shop'], mall: ['#2f80ed', 'market', 'malls'],
+  place_of_worship: ['#2e9e5b', 'mosque', 'worship'], religious: ['#2e9e5b', 'mosque', 'worship'],
+  hospital: ['#e5484d', 'hospital', 'hospital'], pharmacy: ['#e5484d', 'hospital', 'pharmacy'], doctors: ['#e5484d', 'hospital', 'hospital'], dentist: ['#e5484d', 'hospital', 'hospital'],
+  bank: ['#11a3a3', 'atm', 'atm'], atm: ['#11a3a3', 'atm', 'atm'],
+  museum: ['#a24bd6', 'museum', 'cat_museum'], attraction: ['#a24bd6', 'view', 'cat_view'], castle: ['#a24bd6', 'history', 'cat_history'], monument: ['#a24bd6', 'history', 'cat_history'],
+  park: ['#36a35a', 'park', 'cat_park'], garden: ['#36a35a', 'park', 'cat_park'],
+  school: ['#6b7a99', 'school', ''], college: ['#6b7a99', 'school', ''], fuel: ['#6b7a99', 'fuel', ''], police: ['#3d5afe', 'sos', 'police'], toilets: ['#6b7a99', 'wc', 'toilets']
+};
+const POI_OTHER = ['#7b8194', 'pin', ''];
+function poiImage(color, icon) {
+  const px = 44, svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="${color}" stroke="#fff" stroke-width="3"/><g transform="translate(11 11) scale(0.92)" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${ICON[icon] || ''}</g></svg>`;
+  return new Promise((res) => { const im = new Image(px, px); im.onload = () => res(im); im.onerror = () => res(null); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+}
+async function stylePois() {
+  const kinds = new Map([...Object.values(POI_STYLE), POI_OTHER].map(([c, i]) => [`k-${i}-${c.slice(1)}`, [c, i]]));
+  await Promise.all([...kinds].map(async ([id, [c, i]]) => { if (!map.hasImage(id)) { const im = await poiImage(c, i); if (im && !map.hasImage(id)) map.addImage(id, im, { pixelRatio: 2 }); } }));
+  const iconExpr = ['match', ['get', 'class'], ...Object.entries(POI_STYLE).flatMap(([k, [c, i]]) => [k, `k-${i}-${c.slice(1)}`]), `k-${POI_OTHER[1]}-${POI_OTHER[0].slice(1)}`];
+  const colorExpr = ['match', ['get', 'class'], ...Object.entries(POI_STYLE).flatMap(([k, [c]]) => [k, c]), POI_OTHER[0]];
+  for (const id of ['poi_r1', 'poi_r7', 'poi_r20']) {
+    if (!map.getLayer(id)) continue;
+    map.setLayoutProperty(id, 'icon-image', iconExpr);
+    map.setLayoutProperty(id, 'icon-size', 1);
+    map.setLayoutProperty(id, 'text-font', ['Noto Sans Bold']);
+    map.setLayoutProperty(id, 'text-size', 12);
+    map.setLayoutProperty(id, 'text-anchor', 'left');
+    map.setLayoutProperty(id, 'text-justify', 'left');
+    map.setLayoutProperty(id, 'text-offset', [1.15, 0]);
+    map.setLayoutProperty(id, 'text-max-width', 8);
+    map.setLayoutProperty(id, 'text-optional', true);
+    map.setLayoutProperty(id, 'text-field', ['coalesce', ['get', 'name:tr'], ['get', 'name'], ['get', 'name_en']]);
+    map.setPaintProperty(id, 'text-color', colorExpr);
+  }
+}
+// Tap a place on the map: open its card (with our details when we know the place).
+function poiTap(e) {
+  const f = e.features && e.features[0]; if (!f) return;
+  const [lon, lat] = f.geometry.coordinates, pr = f.properties || {};
+  const name = pr['name:tr'] || pr.name || pr.name_en || '';
+  const [, , labelKey] = POI_STYLE[pr.class] || POI_OTHER;
+  const pl = state.places || {}, fn = fold(name);
+  let best = null;
+  for (const list of Object.values(pl)) for (const p of list || []) {
+    if (p == null || typeof p !== 'object' || p.lat == null) continue;
+    const d = distanceM({ lat, lon }, p);
+    if (d < 90 && (fold(p.name) === fn || fold(p.local) === fn) && (!best || d < best.d)) best = { p, d };
+  }
+  const place = best ? best.p : { name, local: name, lat, lon, street: '', phone: '', cuisine: '' };
+  openPlace(place, labelKey ? T(labelKey) : (pr.subclass || pr.class || '').replace(/_/g, ' '));
+}
+
 function tintMap() {
   // Hide the base style's own point icons so only Keşif pins remain, like a clean Apple Maps view.
-  for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi|transit|railway|aerialway|shield|one_way/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+  for (const l of map.getStyle().layers) if (l.type === 'symbol' && /poi_transit|railway|aerialway|shield|airport/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+  stylePois();
   // Striped pedestrian-area patterns look noisy on a phone: plain ground instead.
   for (const l of map.getStyle().layers) if (l.type === 'fill' && l.paint && l.paint['fill-pattern']) map.setLayoutProperty(l.id, 'visibility', 'none');
+  roadWidths();
   mapDark = null; // paint again for the current time of day
+}
+// Wider, softer streets like Yandex and Apple: easy to read on a phone.
+function roadWidths() {
+  const w = (stops) => ['interpolate', ['exponential', 1.5], ['zoom'], ...stops];
+  for (const l of map.getStyle().layers) {
+    if (l.type !== 'line' || !/^(road|bridge|tunnel)_/.test(l.id) || /rail|path|pedestrian|one_way/.test(l.id)) continue;
+    const cas = /casing/.test(l.id), major = /motorway|trunk|primary/.test(l.id), mid = /secondary|tertiary|link/.test(l.id);
+    const base = major ? [11, 2, 14, 7, 16, 16, 18, 34] : mid ? [12, 1.5, 14, 5, 16, 13, 18, 28] : [13, 1, 15, 4, 16, 9, 18, 22];
+    const stops = base.map((v, i) => (i % 2 ? v + (cas ? Math.max(1.5, v * 0.25) : 0) : v));
+    try { map.setPaintProperty(l.id, 'line-width', w(stops)); } catch { /* skip */ }
+  }
 }
 let mapDark = null;
 function wantDark() {
@@ -475,12 +550,6 @@ function drawMarkers() {
   for (const x of (state.pubNear || []).filter((x) => !SH.isMine(x.id)).slice(0, 40)) {
     addMarker(x.lat, x.lon, `<div class="ph-pin pub"><img src="${SH.imgUrl(x.id)}" alt="" loading="lazy"></div>`, { onClick: () => openPublic(x.id), label: x.placeName, z: 1 });
   }
-  const pl = state.places;
-  if (pl) {
-    for (const p of nearest(pl.worship, 8)) { const k = worshipIcon(p.religion); addMarker(p.lat, p.lon, pinHtml(k, PIN_COLOR[k]), { onClick: () => openPlace(p, T(relKey(p.religion))), label: `${p.name || p.local}, ${T(relKey(p.religion))}` }); }
-    for (const p of nearest(pl.food, 6)) addMarker(p.lat, p.lon, pinHtml('food', PIN_COLOR.food), { onClick: () => openPlace(p, T('restaurant')), label: `${p.name || p.local}, ${T('restaurant')}` });
-    for (const p of nearest(pl.hospital, 6)) addMarker(p.lat, p.lon, pinHtml('hospital', PIN_COLOR.hospital), { onClick: () => openPlace(p, T('hospital')), label: `${p.name || p.local}, ${T('hospital')}` });
-  }
   for (const s of city().stamps) {
     const got = G.hasStamp(state.city, s.id);
     const cat = (STOP_INFO[s.id]?.cat || s.cat || ['history'])[0];
@@ -523,6 +592,8 @@ function renderMapChrome() {
   const here_ = next && state.pos && next.d <= CHECKIN_RADIUS + Math.min(state.pos.acc || 0, 100);
   $('map-bottom').innerHTML = `
     <div class="fab-col">
+      <div class="zoom-pair"><button type="button" data-zoom="1" aria-label="${esc(T('zoom_in'))}">${ico('plus')}</button><button type="button" data-zoom="-1" aria-label="${esc(T('zoom_out'))}">${ico('minus')}</button></div>
+      <button type="button" class="round compass" data-north aria-label="${esc(T('north_up'))}"><span id="compass-n" style="transform:rotate(${map ? -map.getBearing() : 0}deg)">▲</span></button>
       <button type="button" class="round dim-btn" data-3d aria-label="${esc(T(map3d() ? 'map_2d' : 'map_3d'))}">${map3d() ? '2D' : '3D'}</button>
       <button type="button" class="round locate" id="locate-btn" aria-label="${esc(T('locate'))}">${ico('locate')}</button>
       <button type="button" class="round cam" data-photo="" aria-label="${esc(T('take_photo'))}">${ico('camera')}</button>
@@ -1638,9 +1709,11 @@ function init() {
   fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-3d],[data-vpub],[data-vunpub],[data-pview],[data-preport],[data-consent],[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-zoom],[data-north],[data-3d],[data-vpub],[data-vunpub],[data-pview],[data-preport],[data-consent],[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.hasAttribute('data-3d')) { store.set('map3d', !map3d()); apply3d(); renderMapChrome(); }
+    if (el.dataset.zoom) map?.easeTo({ zoom: map.getZoom() + Number(el.dataset.zoom), duration: 300 });
+    else if (el.hasAttribute('data-north')) map?.easeTo({ bearing: 0, duration: 500 });
+    else if (el.hasAttribute('data-3d')) { store.set('map3d', !map3d()); apply3d(); renderMapChrome(); }
     else if (el.dataset.vpub) publish(el.dataset.vpub);
     else if (el.dataset.vunpub) unpublish(el.dataset.vunpub);
     else if (el.dataset.pview) openPublic(el.dataset.pview);
@@ -1719,8 +1792,9 @@ function init() {
     const go = () => { if (!asked) { asked = true; startWatch(); } };
     try { navigator.permissions.query({ name: 'geolocation' }).then((r) => { if (r.state !== 'denied') go(); }).catch(go); } catch { go(); }
   }
-  if (map) map.on('click', () => { closeCard(); endSearch(false); });
+  if (map) map.on('click', (e) => { if (e.defaultPrevented) return; closeCard(); endSearch(false); });
   $('big').addEventListener('click', () => { $('big').hidden = true; });
+  if (map) map.on('rotate', () => { const n = $('compass-n'); if (n) n.style.transform = `rotate(${-map.getBearing()}deg)`; });
   if (map) map.on('dragstart', () => { state.follow = false; }); // moving the map yourself stops following
   loadLive();
   if ('serviceWorker' in navigator) {

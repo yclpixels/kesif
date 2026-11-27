@@ -610,3 +610,10 @@ select, input[type="number"] { width: 100%; font: inherit; font-size: 16px; font
 .check { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-weight: 700; }
 .check input { width: 22px; height: 22px; flex: 0 0 auto; }
 .dim-btn { font-weight: 800; font-size: .95rem; letter-spacing: .02em; }
+
+/* map controls, Yandex/Apple style: one tidy column on the right */
+.zoom-pair { display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: rgba(28, 21, 70, .92); box-shadow: 0 4px 14px rgba(0, 0, 0, .3); backdrop-filter: blur(10px); }
+.zoom-pair button { width: 48px; height: 46px; border: 0; background: none; color: #fff; display: grid; place-items: center; cursor: pointer; }
+.zoom-pair button + button { border-top: 1px solid rgba(255, 255, 255, .12); }
+.zoom-pair .ico { width: 22px; height: 22px; }
+.compass span { display: block; color: #ef4444; font-size: 1rem; line-height: 1; transition: transform .2s; }
