@@ -7,15 +7,29 @@ compatibility_date = "2026-11-01"
 # The site that may call this server (GitHub Pages; add a custom domain later if you get one).
 ALLOWED_ORIGINS = "https://yclpixels.github.io,http://localhost:8782"
 
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "kesif-photos"
+# Pictures: Workers KV is in the free plan (1 GB, no payment card). For more space later, create an
+# R2 bucket and uncomment the block below; the server uses R2 whenever it is bound.
+[[kv_namespaces]]
+binding = "PHOTOS_KV"
+id = "REPLACE_WITH_ID_FROM_wrangler_kv_namespace_create"
+
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "kesif-photos"
+
+# Second photo check without a payment card: Cloudflare Workers AI (free daily allowance).
+[ai]
+binding = "AI"
+
+# Daily clean-up of hidden photos
+[triggers]
+crons = ["17 3 * * *"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "kesif-photos"
 database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
 
-# Secrets (never in this file):  npx wrangler secret put VISION_API_KEY
+# Secrets (never in this file):  npx wrangler secret put VISION_API_KEY   (optional, instead of Workers AI)
 #                                npx wrangler secret put TURNSTILE_SECRET
 #                                npx wrangler secret put ADMIN_KEY

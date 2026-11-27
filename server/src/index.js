@@ -9,12 +9,24 @@
 //   DELETE /api/photos/<id>      header X-Delete-Token: the token returned at upload (owner only)
 //   GET    /admin                review page; /api/admin/* need header X-Admin-Key
 //
-// Every upload is checked twice: on the phone (js/photocheck.js) and here with Google Vision
-// SafeSearch, because a phone check can be skipped by a modified app.
+// No one has to approve photos by hand. Like Google Maps, Instagram or iNaturalist, safety comes from
+// layers that run by themselves:
+//   1. a check on the phone (js/photocheck.js) — nudity, selfie or view only;
+//   2. a check here (Google Vision SafeSearch or Cloudflare Workers AI, whichever is set up);
+//   3. trust: new phones may share a few photos a day and one report hides their photo;
+//      phones with a clean record share more and need three reports;
+//   4. strikes: a phone with two hidden photos in 30 days is blocked automatically;
+//   5. clean-up: hidden photos are deleted after 30 days unless someone restored them.
+// The review page (/admin) is optional: look at hidden photos when you have time.
+//
+// Pictures are kept in R2 if a bucket is bound (BUCKET), else in Workers KV (PHOTOS_KV) — KV is part
+// of Cloudflare's free plan and needs no payment card.
 
 const MAX_BYTES = 2_500_000;
-const DAILY_LIMIT = 20; // uploads per device per day
-const REPORT_LIMIT = 3;
+const LIMIT_NEW = 5, LIMIT_TRUSTED = 20; // shared photos per phone per day
+const REPORTS_NEW = 1, REPORTS_TRUSTED = 3;
+const TRUST_AFTER = 5; // photos live for a week without any report
+const STRIKES = 2;     // hidden photos in 30 days before a phone is blocked
 const PLACE_RE = /^(p_-?\d{1,3}\.\d{1,5}_-?\d{1,3}\.\d{1,5}|[a-z0-9_]{2,40}|wp:[a-z]{2}:\d{1,12})$/;
 const DEVICE_RE = /^[a-z0-9]{16,40}$/;
 
@@ -35,6 +47,21 @@ function cors(env, req) {
   };
 }
 
+// ---- picture storage: R2 when available, otherwise KV ----
+const store = {
+  put: (env, id, bytes) => (env.BUCKET
+    ? env.BUCKET.put(`photos/${id}.jpg`, bytes, { httpMetadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000, immutable' } })
+    : env.PHOTOS_KV.put(`photo:${id}`, bytes)),
+  get: async (env, id) => (env.BUCKET ? (await env.BUCKET.get(`photos/${id}.jpg`))?.body || null : env.PHOTOS_KV.get(`photo:${id}`, 'stream')),
+  del: (env, id) => (env.BUCKET ? env.BUCKET.delete(`photos/${id}.jpg`) : env.PHOTOS_KV.delete(`photo:${id}`))
+};
+
+async function trusted(env, device) {
+  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM photos p WHERE p.device = ? AND p.status = 'live' AND p.created < datetime('now', '-7 days')
+    AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.photo = p.id)`).bind(device).first();
+  return (r?.n || 0) >= TRUST_AFTER;
+}
+
 async function turnstileOk(env, token, ip) {
   if (!env.TURNSTILE_SECRET) return true; // local development without Turnstile
   if (!token) return false;
@@ -47,8 +74,20 @@ async function turnstileOk(env, token, ip) {
 }
 
 // Google Vision SafeSearch. Refuses when adult or racy content is LIKELY or VERY_LIKELY.
+// Cloudflare Workers AI (free daily allowance): ask a vision model a yes/no question.
+async function workersAiOk(env, bytes) {
+  try {
+    const out = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
+      image: [...new Uint8Array(bytes)],
+      prompt: 'Does this photo show nudity, sexual content, underwear, blood, gore or violence? Answer with one word: YES or NO.',
+      max_tokens: 3
+    });
+    return !/\byes\b/i.test(String(out?.description || out?.response || ''));
+  } catch { return true; } // the phone already checked it; don't block when the model is busy
+}
+
 async function safeSearchOk(env, bytes) {
-  if (!env.VISION_API_KEY) return env.ALLOW_UNCHECKED === '1'; // never skip in production
+  if (!env.VISION_API_KEY) return env.AI ? workersAiOk(env, bytes) : env.ALLOW_UNCHECKED === '1'; // never unchecked in production
   let bin = '';
   const u8 = new Uint8Array(bytes);
   for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
@@ -79,7 +118,7 @@ async function upload(req, env) {
   const banned = await env.DB.prepare('SELECT 1 FROM banned WHERE device = ?').bind(device).first();
   if (banned) return json({ error: 'banned' }, 403);
   const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM photos WHERE device = ? AND created > datetime('now', '-1 day')").bind(device).first();
-  if ((today?.n || 0) >= DAILY_LIMIT) return json({ error: 'limit' }, 429);
+  if ((today?.n || 0) >= ((await trusted(env, device)) ? LIMIT_TRUSTED : LIMIT_NEW)) return json({ error: 'limit' }, 429);
 
   const bytes = await photo.arrayBuffer();
   // JPEG files start with FF D8: refuse anything pretending to be one.
@@ -88,7 +127,7 @@ async function upload(req, env) {
   if (!(await safeSearchOk(env, bytes))) return json({ error: 'refused' }, 422);
 
   const id = rid(), token = rid();
-  await env.BUCKET.put(`photos/${id}.jpg`, bytes, { httpMetadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000, immutable' } });
+  await store.put(env, id, bytes);
   await env.DB.prepare('INSERT INTO photos (id, place, place_name, lat, lon, name, kind, device, token, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id, place, placeName, lat, lon, name, kind, device, token, 'live').run();
   return json({ id, token, url: `/img/${id}.jpg` }, 201);
@@ -116,17 +155,25 @@ async function image(id, env) {
   if (!/^[a-f0-9]{24}$/.test(id)) return new Response('not found', { status: 404 });
   const row = await env.DB.prepare("SELECT status FROM photos WHERE id = ?").bind(id).first();
   if (!row || row.status !== 'live') return new Response('not found', { status: 404 });
-  const obj = await env.BUCKET.get(`photos/${id}.jpg`);
-  if (!obj) return new Response('not found', { status: 404 });
-  return new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+  const body = await store.get(env, id);
+  if (!body) return new Response('not found', { status: 404 });
+  return new Response(body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
 }
 
 async function report(id, req, env) {
   const { device } = await req.json().catch(() => ({}));
   if (!/^[a-f0-9]{24}$/.test(id) || !DEVICE_RE.test(String(device || ''))) return json({ error: 'bad_request' }, 400);
   await env.DB.prepare('INSERT OR IGNORE INTO reports (photo, device) VALUES (?, ?)').bind(id, device).run();
+  const photo = await env.DB.prepare("SELECT device, status FROM photos WHERE id = ?").bind(id).first();
+  if (!photo || photo.status !== 'live') return json({ ok: true });
+  // A photo someone already restored after review stays up unless many more people object.
   const c = await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE photo = ?').bind(id).first();
-  if ((c?.n || 0) >= REPORT_LIMIT) await env.DB.prepare("UPDATE photos SET status = 'hidden' WHERE id = ? AND status = 'live'").bind(id).run();
+  const need = (await trusted(env, photo.device)) ? REPORTS_TRUSTED : REPORTS_NEW;
+  if ((c?.n || 0) >= need) {
+    await env.DB.prepare("UPDATE photos SET status = 'hidden', hidden_at = datetime('now') WHERE id = ? AND status = 'live'").bind(id).run();
+    const strikes = await env.DB.prepare("SELECT COUNT(*) AS n FROM photos WHERE device = ? AND status IN ('hidden', 'removed') AND hidden_at > datetime('now', '-30 days')").bind(photo.device).first();
+    if ((strikes?.n || 0) >= STRIKES) await env.DB.prepare('INSERT OR IGNORE INTO banned (device) VALUES (?)').bind(photo.device).run();
+  }
   return json({ ok: true });
 }
 
@@ -134,7 +181,7 @@ async function remove(id, req, env) {
   const token = req.headers.get('X-Delete-Token') || '';
   const row = await env.DB.prepare('SELECT token FROM photos WHERE id = ?').bind(id).first();
   if (!row || !token || row.token !== token) return json({ error: 'forbidden' }, 403);
-  await env.BUCKET.delete(`photos/${id}.jpg`);
+  await store.del(env, id);
   await env.DB.prepare("UPDATE photos SET status = 'deleted' WHERE id = ?").bind(id).run();
   return json({ ok: true });
 }
@@ -157,21 +204,32 @@ async function admin(url, req, env) {
       await env.DB.prepare('DELETE FROM reports WHERE photo = ?').bind(id).run();
     } else if (action === 'delete' || action === 'ban') {
       const row = await env.DB.prepare('SELECT device FROM photos WHERE id = ?').bind(id).first();
-      await env.BUCKET.delete(`photos/${id}.jpg`);
-      await env.DB.prepare("UPDATE photos SET status = 'removed' WHERE id = ?").bind(id).run();
+      await store.del(env, id);
+      await env.DB.prepare("UPDATE photos SET status = 'removed', hidden_at = datetime('now') WHERE id = ?").bind(id).run();
       if (action === 'ban' && row) await env.DB.prepare('INSERT OR IGNORE INTO banned (device) VALUES (?)').bind(row.device).run();
     } else return json({ error: 'bad_action' }, 400);
     return json({ ok: true });
   }
   if (url.pathname.startsWith('/api/admin/img/')) {
     const id = url.pathname.split('/').pop();
-    const obj = /^[a-f0-9]{24}$/.test(id) ? await env.BUCKET.get(`photos/${id}.jpg`) : null;
-    return obj ? new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } }) : new Response('not found', { status: 404 });
+    const body = /^[a-f0-9]{24}$/.test(id) ? await store.get(env, id) : null;
+    return body ? new Response(body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } }) : new Response('not found', { status: 404 });
   }
   return json({ error: 'not_found' }, 404);
 }
 
+// Daily: hidden photos nobody restored are deleted after 30 days.
+async function cleanUp(env) {
+  const { results } = await env.DB.prepare("SELECT id FROM photos WHERE status = 'hidden' AND hidden_at < datetime('now', '-30 days') LIMIT 500").all();
+  for (const { id } of results) {
+    await store.del(env, id);
+    await env.DB.prepare("UPDATE photos SET status = 'removed' WHERE id = ?").bind(id).run();
+  }
+  return results.length;
+}
+
 export default {
+  async scheduled(_event, env, ctx) { ctx.waitUntil(cleanUp(env)); },
   async fetch(req, env) {
     const url = new URL(req.url), h = cors(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
@@ -205,7 +263,7 @@ button{padding:10px 14px;border:0;border-radius:10px;background:#7c3aed;color:#f
 .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}.c{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px #0002}
 .c img{width:100%;height:220px;object-fit:cover;display:block;background:#ddd}.c div{padding:10px}.c small{color:#666;display:block;margin:4px 0 8px}
 .r{display:flex;gap:6px;flex-wrap:wrap}.del{background:#d70015}.ban{background:#1c1c1e}.keep{background:#1f9d55}</style></head>
-<body><h1>Bildirilen fotoğraflar</h1><div class="k"><input id="key" type="password" placeholder="Yönetici anahtarı"><button id="go">Yükle</button></div><div class="g" id="g"></div>
+<body><h1>Gizlenen fotoğraflar</h1><p>Bu sayfaya bakmak zorunda değilsin: gizlenen fotoğraflar 30 gün sonra kendiliğinden silinir. Haksız gizlenen bir fotoğrafı buradan geri açabilirsin.</p><div class="k"><input id="key" type="password" placeholder="Yönetici anahtarı"><button id="go">Yükle</button></div><div class="g" id="g"></div>
 <script>
 const $=(i)=>document.getElementById(i);$('key').value=sessionStorage.getItem('k')||'';
 const H=()=>({'X-Admin-Key':$('key').value,'Content-Type':'application/json'});

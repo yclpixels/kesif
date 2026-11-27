@@ -1,6 +1,6 @@
 // Damga service worker: keeps the app shell available offline.
 // Live data (weather, prayer times, places) is cached separately in localStorage by js/api.js.
-const VERSION = 'kesif-v35';
+const VERSION = 'kesif-v36';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/apple-touch-icon.png',
   './js/app.js', './js/api.js', './js/data.js', './js/i18n.js', './js/game.js', './js/mascot.js', './js/stops-info.js', './js/photos.js', './js/album.js', './js/icons.js', './js/phrases.js', './js/photocheck.js', './js/share.js', './assets/3d/manifest.json', './data/tr-admin.json', './data/grid/index.json', './data/tr-map.json'
@@ -19,6 +19,7 @@ self.addEventListener('activate', (e) => {
 // Map files, the map library and stop photos: cache first, so places seen once also work offline.
 const RUNTIME = [
   [/^https:\/\/tiles\.openfreemap\.org\//, 'kesif-map'],
+  [/^https:\/\/s3\.amazonaws\.com\/elevation-tiles-prod\//, 'kesif-map'],
   [/^https:\/\/unpkg\.com\/(maplibre-gl|@google\/model-viewer)@/, 'kesif-map'],
   [/^https:\/\/cdn\.jsdelivr\.net\/npm\/@tensorflow/, 'kesif-map'],
   [/^https:\/\/(upload|thumb)\.wikimedia\.org\//, 'kesif-img']

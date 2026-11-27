@@ -327,11 +327,51 @@ let map, markers = [];
 function initMap() {
   if (!window.maplibregl) { $('map').innerHTML = `<p class="map-fallback">${esc(T('offline'))}</p>`; return; }
   map = new maplibregl.Map({
-    container: 'map', style: MAP_STYLE, center: [here().lon, here().lat], zoom: 16.2, pitch: 45, bearing: 0,
-    attributionControl: false, maxPitch: 70
+    container: 'map', style: MAP_STYLE, center: [here().lon, here().lat], zoom: 16.2, pitch: map3d() ? PITCH_3D : 0, bearing: map3d() ? -17 : 0,
+    attributionControl: false, maxPitch: 75
   });
   // Credit line is drawn by us in index.html (#map-credit) so it stays one small, quiet line.
-  map.on('style.load', () => { tintMap(); applyTheme(); });
+  map.on('style.load', () => { tintMap(); add3d(); applyTheme(); });
+}
+
+/* ---------- 3D: real hills and mountains, sky, sunlight on buildings ---------- */
+// Elevation from the free AWS Terrain Tiles (Mapzen "terrarium" format, open data).
+const PITCH_3D = 60;
+const map3d = () => store.get('map3d', true);
+const pitchNow = () => (map3d() ? PITCH_3D : 0);
+function add3d() {
+  if (!map.getSource('dem')) {
+    map.addSource('dem', { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Terrain Tiles (AWS, Mapzen)' });
+    map.addSource('dem-shade', { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], encoding: 'terrarium', tileSize: 256, maxzoom: 14 });
+    // Soft shading of slopes, under roads and labels
+    const before = map.getStyle().layers.find((l) => /^(road|tunnel|bridge|building)/.test(l.id))?.id;
+    map.addLayer({ id: 'hillshade', type: 'hillshade', source: 'dem-shade', paint: { 'hillshade-exaggeration': 0.35, 'hillshade-shadow-color': '#7a7466', 'hillshade-highlight-color': '#ffffff', 'hillshade-accent-color': '#8a8070' } }, before);
+  }
+  // Buildings lit from the south-west, darker at the foot, like a 3D city
+  set3dPaint();
+  apply3d(false);
+}
+function set3dPaint() {
+  try {
+    map.setPaintProperty('building-3d', 'fill-extrusion-vertical-gradient', true);
+    map.setLight({ anchor: 'map', position: [1.4, 215, 35], color: '#ffffff', intensity: mapDark ? 0.25 : 0.45 });
+    map.setSky(mapDark
+      ? { 'sky-color': '#0b0d1f', 'horizon-color': '#1d2340', 'fog-color': '#15172b', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.4 }
+      : { 'sky-color': '#7ec3f5', 'horizon-color': '#dceefc', 'fog-color': '#eef3f8', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.35 });
+    if (map.getLayer('hillshade')) {
+      map.setPaintProperty('hillshade', 'hillshade-shadow-color', mapDark ? '#000000' : '#7a7466');
+      map.setPaintProperty('hillshade', 'hillshade-highlight-color', mapDark ? '#3a3b44' : '#ffffff');
+      map.setPaintProperty('hillshade', 'hillshade-exaggeration', mapDark ? 0.5 : 0.35);
+    }
+  } catch { /* older engine: skip the extras */ }
+}
+// Turn 3D on or off: terrain, tilt and building heights together.
+function apply3d(animate = true) {
+  const on = map3d();
+  try { map.setTerrain(on ? { source: 'dem', exaggeration: 1.35 } : null); } catch { /* no terrain support */ }
+  if (map.getLayer('building-3d')) map.setLayoutProperty('building-3d', 'visibility', on ? 'visible' : 'none');
+  if (map.getLayer('building')) map.setLayoutProperty('building', 'visibility', on ? 'none' : 'visible');
+  if (animate) map.easeTo({ pitch: on ? PITCH_3D : 0, bearing: on ? -17 : 0, duration: 700 });
 }
 // Recolour the base style toward Apple Maps.
 // The map's look, close to Apple Maps: one palette for day and one for night, applied layer by layer.
@@ -395,9 +435,10 @@ function applyTheme() {
   mapDark = dark;
   document.body.classList.toggle('map-dark', dark);
   paintMap(dark);
+  set3dPaint();
 }
 
-function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: 45, duration: 800 }); }
+function centerMap() { if (map) map.easeTo({ center: [here().lon, here().lat], zoom: 16.2, pitch: pitchNow(), duration: 800 }); }
 
 function addMarker(lat, lon, html, { onClick, popupHtml, z = 0, label = '' } = {}) {
   const el = document.createElement('div');
@@ -482,6 +523,7 @@ function renderMapChrome() {
   const here_ = next && state.pos && next.d <= CHECKIN_RADIUS + Math.min(state.pos.acc || 0, 100);
   $('map-bottom').innerHTML = `
     <div class="fab-col">
+      <button type="button" class="round dim-btn" data-3d aria-label="${esc(T(map3d() ? 'map_2d' : 'map_3d'))}">${map3d() ? '2D' : '3D'}</button>
       <button type="button" class="round locate" id="locate-btn" aria-label="${esc(T('locate'))}">${ico('locate')}</button>
       <button type="button" class="round cam" data-photo="" aria-label="${esc(T('take_photo'))}">${ico('camera')}</button>
     </div>
@@ -911,7 +953,7 @@ function drawLine(id, coords, { dashed = false, fit = true, padBottom = 240 } = 
     }
     if (!fit) return;
     const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
-    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 120, bottom: Math.min(padBottom, map.getContainer().clientHeight - 200), left: 50, right: 50 }, pitch: 45, duration: 900 });
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: { top: 120, bottom: Math.min(padBottom, map.getContainer().clientHeight - 200), left: 50, right: 50 }, pitch: map3d() ? 45 : 0, duration: 900 });
   };
   setTimeout(() => { map.resize(); if (map.isStyleLoaded()) draw(); else map.once('idle', draw); }, 60);
 }
@@ -1016,7 +1058,7 @@ function endNav(silent) {
   $('nav-top').hidden = $('nav-bottom').hidden = true;
   try { speechSynthesis.cancel(); } catch { /* none */ }
   try { wakeLock?.release(); } catch { /* none */ } wakeLock = null;
-  if (!silent) { clearLines(); map.easeTo({ bearing: 0, pitch: 45, duration: 600 }); renderMapChrome(); }
+  if (!silent) { clearLines(); map.easeTo({ bearing: map3d() ? -17 : 0, pitch: pitchNow(), duration: 600 }); renderMapChrome(); }
 }
 
 // Install: Android/Chrome gives us a prompt; iPhone needs the Share menu.
@@ -1596,9 +1638,10 @@ function init() {
   fetch('./assets/3d/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { setArt(m); if (hasArt()) renderAll(); }).catch(() => {});
   initMap();
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-vpub],[data-vunpub],[data-pview],[data-preport],[data-consent],[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
+    const el = e.target.closest('[data-3d],[data-vpub],[data-vunpub],[data-pview],[data-preport],[data-consent],[data-pc-mode],[data-prov],[data-prov-back],[data-place],[data-say],[data-big],[data-share],[data-quick],[data-nav-end],[data-nav-mute],[data-nav-overview],[data-route-card],[data-route-stop],[data-route-clear],[data-hours],[data-plan-map],[data-hit],[data-install],[data-reload],[data-collect],[data-cel-close],[data-pc-close],[data-start],[data-photo],[data-view],[data-vshare],[data-vdel],[data-vdel-yes],[data-vclose],[data-rate],[data-scroll],[data-save],[data-tab],[data-go],[data-stop],[data-page],[data-back],[data-qtab],[data-ctab],[data-claim],[data-char],[data-city],[data-go-col],#city-toggle,#tools-btn,#locate-btn,#tools-close');
     if (!el) return;
-    if (el.dataset.vpub) publish(el.dataset.vpub);
+    if (el.hasAttribute('data-3d')) { store.set('map3d', !map3d()); apply3d(); renderMapChrome(); }
+    else if (el.dataset.vpub) publish(el.dataset.vpub);
     else if (el.dataset.vunpub) unpublish(el.dataset.vunpub);
     else if (el.dataset.pview) openPublic(el.dataset.pview);
     else if (el.dataset.preport) { SH.report(el.dataset.preport).then(() => { toast(T('pub_reported')); $('viewer').hidden = true; }); }

@@ -26,7 +26,7 @@ a{color:var(--accent)}.note{padding:12px 14px;border-radius:12px;background:rgba
 <h2>Amaç ve hukuki sebep</h2>
 <p>Paylaştığın fotoğrafın diğer kullanıcılara gösterilmesi, hizmetin güvenli işletilmesi ve uygunsuz içeriğin engellenmesi. Hukuki sebep: paylaşırken verdiğin açık rıza ve hizmetin sunulması için zorunlu olan işlemler (KVKK m. 5).</p>
 <h2>Otomatik kontrol ve aktarım</h2>
-<p>Her fotoğraf önce telefonunda, sonra sunucuda <b>Google Cloud Vision</b> ile uygunsuz içerik (çıplaklık, şiddet) açısından kontrol edilir. Fotoğraflar <b>Cloudflare</b> altyapısında saklanır. Bu hizmet sağlayıcıların sunucuları yurt dışında olabilir; aktarım KVKK m. 9’a uygun şekilde ve açık rızana dayanılarak yapılır.</p>
+<p>Her fotoğraf önce telefonunda, sonra sunucuda yapay zekâ ile (<b>Cloudflare Workers AI</b>; ileride <b>Google Cloud Vision</b>) uygunsuz içerik (çıplaklık, şiddet) açısından kontrol edilir. Fotoğraflar <b>Cloudflare</b> altyapısında saklanır. Bildirim alan fotoğraflar otomatik gizlenir ve 30 gün içinde silinir. Bu hizmet sağlayıcıların sunucuları yurt dışında olabilir; aktarım KVKK m. 9’a uygun şekilde ve açık rızana dayanılarak yapılır.</p>
 <h2>Saklama süresi</h2>
 <p>Paylaşımı kaldırdığın an fotoğraf sunucudan silinir. Bildirim sonucu kaldırılan fotoğraflar da silinir; kötüye kullanımı önlemek için yalnızca cihaz kimliği ve kayıt bilgisi [süre] saklanabilir.</p>
 <h2>Hakların</h2>

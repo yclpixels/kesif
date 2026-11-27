@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS photos (
   device TEXT NOT NULL,           -- random id made on the phone; no account
   token TEXT NOT NULL,            -- lets the owner delete the photo
   status TEXT NOT NULL DEFAULT 'live', -- live | hidden (reported) | deleted (by owner) | removed (by review)
+  hidden_at TEXT,                 -- when it was hidden or removed (for strikes and clean-up)
   created TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS photos_place ON photos (place, status, created);
